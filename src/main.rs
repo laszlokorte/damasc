@@ -22,6 +22,24 @@ enum Value<'a> {
     Boolean(bool),
     Array(Vec<Cow<'a, Value<'a>>>),
     Object(BTreeMap<Cow<'a, str>, Cow<'a, Value<'a>>>),
+    Type(ValueType),
+}
+
+#[derive(Debug, Copy, Clone,Eq,PartialEq,Ord,PartialOrd)]
+enum ValueType {
+    Null,
+    String,
+    Integer,
+    Boolean,
+    Array,
+    Object,
+    Type,
+}
+
+impl std::fmt::Display for ValueType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 impl <'a> Value<'a> {
@@ -61,6 +79,19 @@ impl <'a> Value<'a> {
             Value::Object(o) => {
                 Expression::Object(o.iter().map(|(k,v)| ObjectProperty::Property(Property { key: PropertyKey::Identifier(Identifier{name: Cow::Borrowed(k)}), value: v.to_expression() })).collect())
             },
+            Value::Type(t) => Expression::Literal(Literal::Type(*t)),
+        }
+    }
+
+    fn get_type(&self) -> ValueType {
+        match self {
+            Value::Null => ValueType::Null,
+            Value::String(_) => ValueType::String,
+            Value::Integer(_) => ValueType::Integer,
+            Value::Boolean(_) => ValueType::Boolean,
+            Value::Array(_) => ValueType::Array,
+            Value::Object(_) => ValueType::Object,
+            Value::Type(_) => ValueType::Type,
         }
     }
 }
@@ -87,6 +118,7 @@ impl <'a> std::fmt::Display for Value<'a> {
                 }
                 write!(f,"}}")
             },
+            Value::Type(t) => write!(f,"{t}"),
         };
         write!(f,"")
     }
@@ -102,6 +134,12 @@ enum Pattern<'a> {
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
 struct Identifier<'a> {
     name: Cow<'a, str>,
+}
+
+impl std::fmt::Display for Identifier<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
+    }
 }
 
 type ObjectPattern<'a> = Vec<ObjectPatternPart<'a>>;
@@ -193,6 +231,7 @@ enum BinaryOperator {
     Mod,
     In,
     PowerOf,
+    Is,
 }
 
 #[derive(Clone,Copy, Debug)]
@@ -214,6 +253,8 @@ enum UnaryOperator {
     Minus,
     Plus,
     Not,
+    Type,
+    Count,
 }
 
 #[derive(Clone, Debug)]
@@ -228,6 +269,7 @@ enum Literal<'a> {
     String(Cow<'a, str>),
     Number(Cow<'a, str>),
     Boolean(bool),
+    Type(ValueType),
 }
 
 
@@ -238,6 +280,7 @@ struct Environment<'e> {
 
 #[derive(Debug)]
 enum EvalError {
+    KindError,
     TypeError,
     UnknownIdentifier,
     InvalidNumber,
@@ -254,6 +297,7 @@ impl <'e> Environment<'e> {
             Literal::String(s) => Ok(Value::<'e>::String(Cow::Owned(s.to_string()))),
             Literal::Number(s) => str::parse::<i32>(s).map(Value::Integer).map(Ok).unwrap_or(Err(EvalError::InvalidNumber)),
             Literal::Boolean(b) => Ok(Value::Boolean(*b)),
+            Literal::Type(t) => Ok(Value::Type(*t)),
         }
     }
     
@@ -385,6 +429,14 @@ impl <'e> Environment<'e> {
                 };
                 l.checked_pow(*r as u32).map(Value::Integer).map(Ok).unwrap_or(Err(EvalError::Overflow))
             },
+            BinaryOperator::Is => {
+                let Value::Type(specified_type) = right else {
+                    return Err(EvalError::KindError);
+                };
+                let actual_type = left.get_type();
+
+                Ok(Value::Boolean(actual_type == *specified_type))
+            }
         }
     }
 
@@ -407,6 +459,17 @@ impl <'e> Environment<'e> {
                     return Err(EvalError::TypeError);
                 };
                 Ok(Value::Boolean(!b))
+            },
+            UnaryOperator::Type => {
+                Ok(Value::Type(arg.get_type()))
+            },
+            UnaryOperator::Count => {
+                Ok(Value::Integer(match arg {
+                    Value::String(s) => s.len() as i32,
+                    Value::Array(a) => a.len() as i32,
+                    Value::Object(o) => o.len() as i32,
+                    _ => return Err(EvalError::TypeError) 
+                }))
             },
         }
     }
@@ -620,6 +683,7 @@ fn expression_atom(input:&str) -> IResult<&str, Expression> {
         literal_string,
         literal_bool,
         literal_number,
+        literal_type,
     )), Expression::Literal)(input)
 }
 
@@ -666,18 +730,44 @@ fn expression_logic_additive(input: &str) -> IResult<&str, Expression> {
 }
 
 fn expression_logic_multiplicative(input: &str) -> IResult<&str, Expression> {
-    let (input, init) = expression_numeric_predicative(input)?;
+    let (input, init) = expression_type_predicate(input)?;
 
     fold_many0(
         pair(ws(alt((
             value(LogicalOperator::And, tag("&&")),
-        ))), expression_numeric_predicative),
+        ))), expression_type_predicate),
         move || init.clone(),
         |left, (operator, right)| {
             Expression::Logical(LogicalExpression { operator, left:Box::new(left), right: Box::new(right) })
 
         },
       )(input)
+}
+
+fn literal_type(input: &str) -> IResult<&str, Literal> {
+    map(alt((
+        value(ValueType::Type, tag("Type")),
+        value(ValueType::Null, tag("Null")),
+        value(ValueType::Boolean, tag("Boolean")),
+        value(ValueType::Integer, tag("Integer")),
+        value(ValueType::Array, tag("Array")),
+        value(ValueType::Object, tag("Object")),
+        value(ValueType::String, tag("String")),
+    )), Literal::Type)(input)
+}
+
+fn expression_type_predicate(input: &str) -> IResult<&str, Expression>  {
+    let (input, init) = expression_numeric_predicative(input)?;
+
+    let Ok((input, t)) = preceded(ws(tag("is")), expression_numeric_predicative)(input) else {
+        return Ok((input, init));
+    };
+
+    Ok((input, Expression::Binary(
+        BinaryExpression { operator: BinaryOperator::Is, 
+            left:Box::new(init), 
+            right: Box::new(t) 
+        })))
 }
 
 fn expression_numeric_predicative(input: &str) -> IResult<&str, Expression> {
@@ -789,22 +879,33 @@ fn expression_with_paren(input: &str) -> IResult<&str, Expression> {
 }
 
 fn expression_unary(input: &str) -> IResult<&str, Expression> {
-    alt((expression_unary_logic, expression_unary_numeric))(input)
+    alt((expression_unary_logic, expression_unary_type, expression_unary_numeric))(input)
 }
 
+fn expression_unary_type(input: &str) -> IResult<&str, Expression> {
+    map(pair(ws(alt((
+        value(UnaryOperator::Type, tag("?")),
+    ))), expression_primary), 
+    |(operator, argument)| 
+    Expression::Unary(UnaryExpression{operator, argument: Box::new(argument)}))(input)
+}
 fn expression_unary_logic(input: &str) -> IResult<&str, Expression> {
     map(pair(ws(alt((
         value(UnaryOperator::Not, tag("!")),
-    ))), expression_primary), |(operator, argument)| Expression::Unary(UnaryExpression{operator, argument: Box::new(argument)}))(input)
+    ))), expression_primary), 
+    |(operator, argument)| 
+    Expression::Unary(UnaryExpression{operator, argument: Box::new(argument)}))(input)
 }
 
 fn expression_unary_numeric(input: &str) -> IResult<&str, Expression> {
     map(pair(ws(alt((
         value(UnaryOperator::Minus, tag("-")),
         value(UnaryOperator::Plus, tag("+")),
+        value(UnaryOperator::Count, tag("#")),
     ))), alt((
         expression_indexed,
-    ))), |(operator, argument)| Expression::Unary(UnaryExpression{operator, argument: Box::new(argument)}))(input)
+    ))), |(operator, argument)| 
+    Expression::Unary(UnaryExpression{operator, argument: Box::new(argument)}))(input)
 }
 
 fn expression(input: &str) -> IResult<&str, Expression> {
@@ -827,7 +928,7 @@ enum Statement<'a> {
 fn assignment(input:&str) -> IResult<&str, Statement> {
     map(separated_pair(
         identifier, 
-        ws(tag("=")), 
+        ws(tag(":=")), 
         full_expression), 
         |(id, expr)| Statement::Assign(id, expr))(input)
 }
@@ -868,7 +969,6 @@ fn main() -> rustyline::Result<()>{
                 match stmt {
                     Statement::Inspect(ex) => {
                         dbg!(ex);
-
                     },
                     Statement::Format(ex) => {
                         println!("{ex:?}");
@@ -893,9 +993,10 @@ fn main() -> rustyline::Result<()>{
                                 continue;
                             },
                         };
-                        env.bindings.insert(Identifier { name: Cow::Owned(name.to_string()) }, result.to_owned());
+                        let id = Identifier { name: Cow::Owned(name.to_string()) };
+                        env.bindings.insert(id.clone(), result.to_owned());
 
-                        println!("{result}");
+                        println!("{id} := {result}");
                     }
                 };
 

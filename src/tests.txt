@@ -106,3 +106,33 @@ false
 [...[1,2,3],...[4,5,6],8,9,...[]]
 [1, 2, 3, 4, 5, 6, 8, 9, ]
 ---
+null is Null
+true
+---
+true is Boolean
+true
+---
+false is Boolean
+true
+---
+42 is Integer
+true
+---
+-42 is Integer
+true
+---
+"Hello" is String
+true
+---
+[1,2,3] is Array
+true
+---
+{foo: 23} is Object
+true
+---
+("hello" is Object) is Boolean
+true
+---
+!("hello" is Object)
+true
+---

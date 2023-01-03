@@ -51,7 +51,7 @@ Take a look into the [tests.txt](./src/tests.txt) file for a few example express
 You can also store the result of an expression in a named variable for later use:
 
 ```
->> x = 5+5
+>> x := 5+5
 10
 >> x*x
 100
