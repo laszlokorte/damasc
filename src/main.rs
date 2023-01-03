@@ -1,3 +1,5 @@
+#![feature(iter_array_chunks)]
+
 use std::borrow::{Cow};
 use std::collections::BTreeMap;
 use nom::IResult;
@@ -800,6 +802,7 @@ fn full_expression(input: &str) -> IResult<&str, Expression> {
 
 enum Statement<'a> {
     Inspect(Expression<'a>),
+    Format(Expression<'a>),
     Eval(Expression<'a>),
     Assign(Identifier<'a>, Expression<'a>),
 }
@@ -815,6 +818,7 @@ fn assignment(input:&str) -> IResult<&str, Statement> {
 fn statement(input:&str) -> IResult<&str, Statement> {
     alt((
         map(preceded(tag(".inspect "), full_expression), Statement::Inspect),
+        map(preceded(tag(".format "), full_expression), Statement::Format),
         assignment,
         map(full_expression, Statement::Eval),
     ))(input)
@@ -824,19 +828,6 @@ fn main() -> rustyline::Result<()>{
     let mut env = Environment {
         bindings: BTreeMap::new(),
     };
-
-    let test = include_str!("test.txt");
-
-    let Ok((_,test_expr)) = full_expression(test) else {
-        println!("Parse error");
-        return Err(ReadlineError::Eof);
-    };
-
-    let Ok(_) = env.eval_expr(&test_expr) else {
-        println!("Eval error");
-        return Err(ReadlineError::Eof);
-    };
-
 
     let mut rl = Editor::<()>::new()?;
     if rl.load_history("history.txt").is_err() {
@@ -861,6 +852,9 @@ fn main() -> rustyline::Result<()>{
                     Statement::Inspect(ex) => {
                         dbg!(ex);
 
+                    },
+                    Statement::Format(ex) => {
+                        println!("{ex:?}");
                     },
                     Statement::Eval(ex) => {
                         let result = match env.eval_expr(&ex) {
@@ -906,4 +900,34 @@ fn main() -> rustyline::Result<()>{
     }
     rl.save_history("history.txt")
     
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_many() {
+        let tests = include_str!("tests.txt").lines();
+        let env = Environment {
+            bindings: BTreeMap::new(),
+        };
+
+        for [expr, result] in tests.into_iter().array_chunks() {
+            let parsed = full_expression(expr);
+            let value = expression_atom(result);
+
+            assert!(parsed.is_ok());
+            assert!(value.is_ok());
+
+            let evaled = env.eval_expr(&parsed.unwrap().1);
+            let valued_evaled = env.eval_expr(&value.unwrap().1);
+
+            assert!(evaled.is_ok());
+            assert!(valued_evaled.is_ok());
+
+            assert_eq!(evaled.unwrap(), valued_evaled.unwrap());
+        }
+
+    }
 }
