@@ -136,3 +136,42 @@ true
 !("hello" is Object)
 true
 ---
+length("You can count on me")
+19
+---
+length([4,8,15,23,42])
+5
+---
+length({foo:42, bar:23})
+2
+---
+type(true)
+Boolean
+---
+type(false)
+Boolean
+---
+type("foo")
+String
+---
+type(23)
+Integer
+---
+type(-42)
+Integer
+---
+type([1,2,3])
+Array
+---
+type({x:42, y:32})
+Object
+---
+type(null)
+Null
+---
+type(Integer)
+Type
+---
+type(type(true))
+Type
+---

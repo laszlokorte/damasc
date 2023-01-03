@@ -1,6 +1,6 @@
 #![feature(iter_array_chunks)]
 
-use std::borrow::{Cow};
+use std::borrow::{Cow, Borrow};
 use std::collections::BTreeMap;
 use nom::IResult;
 use nom::branch::alt;
@@ -38,7 +38,7 @@ enum ValueType {
 
 impl std::fmt::Display for ValueType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -165,6 +165,7 @@ enum Expression<'a> {
     Member(MemberExpression<'a>),
     Object(ObjectExpression<'a>),
     Unary(UnaryExpression<'a>),
+    Call(CallExpression<'a>)
 }
 
 type ArrayExpression<'a> = Vec<ArrayItem<'a>>;
@@ -194,6 +195,12 @@ struct Property<'a> {
 enum PropertyKey<'a> {
     Identifier(Identifier<'a>),
     Expression(Expression<'a>),
+}
+
+#[derive(Clone, Debug)]
+struct CallExpression<'a> {
+    function: Identifier<'a>,
+    argument: Box<Expression<'a>>,
 }
 
 #[derive(Clone, Debug)]
@@ -253,8 +260,6 @@ enum UnaryOperator {
     Minus,
     Plus,
     Not,
-    Type,
-    Count,
 }
 
 #[derive(Clone, Debug)]
@@ -288,6 +293,7 @@ enum EvalError {
     KeyNotDefined,
     OutOfBound,
     Overflow,
+    UnknownFunction,
 }
 
 impl <'e> Environment<'e> {
@@ -316,6 +322,7 @@ impl <'e> Environment<'e> {
             self.eval_object(props),
             Expression::Unary(UnaryExpression{operator, argument,..}) => 
             self.eval_expr(argument).and_then(|v|self.eval_unary(operator, &v)),
+            Expression::Call(CallExpression {function, argument}) => self.eval_call(function, &self.eval_expr(argument)?),
         }
     }
     
@@ -460,17 +467,6 @@ impl <'e> Environment<'e> {
                 };
                 Ok(Value::Boolean(!b))
             },
-            UnaryOperator::Type => {
-                Ok(Value::Type(arg.get_type()))
-            },
-            UnaryOperator::Count => {
-                Ok(Value::Integer(match arg {
-                    Value::String(s) => s.len() as i32,
-                    Value::Array(a) => a.len() as i32,
-                    Value::Object(o) => o.len() as i32,
-                    _ => return Err(EvalError::TypeError) 
-                }))
-            },
         }
     }
 
@@ -611,6 +607,23 @@ impl <'e> Environment<'e> {
         Ok(val.clone())
     }
 
+    fn eval_call<'x:'e>(&self, function: &Identifier, argument: &Value<'x>) -> Result<Value<'e>, EvalError> {
+        Ok(match function.name.borrow() {
+            Cow::Borrowed("length") => {
+                Value::Integer(match argument {
+                    Value::String(s) => s.len() as i32,
+                    Value::Array(a) => a.len() as i32,
+                    Value::Object(o) => o.len() as i32,
+                    _ => return Err(EvalError::TypeError) 
+                })
+            },
+            Cow::Borrowed("type") => {
+                Value::Type(argument.get_type())
+            }
+            _ => return Err(EvalError::UnknownFunction)
+        })
+    }
+
 }
 
 
@@ -630,6 +643,19 @@ fn ws<'a, F, O, E: ParseError<&'a str>>(inner: F) -> impl FnMut(&'a str) -> IRes
     inner,
     multispace0
   )
+}
+
+fn expression_call(input: &str) -> IResult<&str, Expression> {
+    map(pair(
+        identifier,
+        delimited(
+            ws(tag("(")),
+        expression,
+        ws(tag(")")),
+        )   
+    ),|(function, arg)| 
+        Expression::Call(CallExpression {function, argument: Box::new(arg)})
+    )(input)
 }
 
 fn expression_array(input: &str) -> IResult<&str, Expression> {
@@ -673,6 +699,7 @@ fn expression_literal(input: &str) -> IResult<&str, Expression> {
     alt((
         expression_object,
         expression_array,
+        expression_call,
         expression_atom,
     ))(input)
 }
@@ -879,16 +906,9 @@ fn expression_with_paren(input: &str) -> IResult<&str, Expression> {
 }
 
 fn expression_unary(input: &str) -> IResult<&str, Expression> {
-    alt((expression_unary_logic, expression_unary_type, expression_unary_numeric))(input)
+    alt((expression_unary_logic, expression_unary_numeric))(input)
 }
 
-fn expression_unary_type(input: &str) -> IResult<&str, Expression> {
-    map(pair(ws(alt((
-        value(UnaryOperator::Type, tag("?")),
-    ))), expression_primary), 
-    |(operator, argument)| 
-    Expression::Unary(UnaryExpression{operator, argument: Box::new(argument)}))(input)
-}
 fn expression_unary_logic(input: &str) -> IResult<&str, Expression> {
     map(pair(ws(alt((
         value(UnaryOperator::Not, tag("!")),
@@ -901,7 +921,6 @@ fn expression_unary_numeric(input: &str) -> IResult<&str, Expression> {
     map(pair(ws(alt((
         value(UnaryOperator::Minus, tag("-")),
         value(UnaryOperator::Plus, tag("+")),
-        value(UnaryOperator::Count, tag("#")),
     ))), alt((
         expression_indexed,
     ))), |(operator, argument)| 
