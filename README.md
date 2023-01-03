@@ -24,6 +24,8 @@ The only operations that are allowed are:
 ## Todo
 
 * implement pattern matching
+* implement simple template literal strings
+* implement advanced integer syntax (eg 10_000, maybe hex, oct and dual basis)
 * improve error reporting
 * implement a few more operators: array length, string length, object keys, string concatination, typeof
 
