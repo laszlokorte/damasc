@@ -28,3 +28,81 @@ true
 "hello"[-1]
 "o"
 ---
+42+8 == 50
+true
+---
+3*6 > 6
+true
+---
+36-12 < 36
+true
+---
+100^2 > 99^2
+true
+---
+100^2 == 10000
+true
+---
+36 + 6 <= 42
+36 + 6 >= 42
+---
+36 + 6 == 42
+true
+---
+36 + 6 != 42
+false
+---
+-5 + 5
+0
+---
+true && true
+true
+---
+true && false
+false
+---
+false && false
+false
+---
+false && true
+false
+---
+true || true
+true
+---
+true || false
+true
+---
+false || false
+false
+---
+false || true
+true
+---
+"hello"[2] == "hello"[-2]
+true
+---
+null == 5
+false
+---
+null
+null
+---
+null!=null
+false
+---
+{x:{y:{z:{w:42}}}}.x.y.z.w
+42
+---
+{[["foo","bar"][0]]: 42}
+{foo: 42}
+---
+{...{x:3}, y:7, ...{x:5}, ...{y:42}, y: 25}
+{x: 5, y: 25, }
+---
+{a: 5,...{a:10,b:11,c:12},b: 22, ...{d:50, c:51}}
+{ a: 10, b: 22, c: 51, d: 50 }
+---
+[...[1,2,3],...[4,5,6],8,9,...[]]
+[1, 2, 3, 4, 5, 6, 8, 9, ]
+---

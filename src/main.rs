@@ -684,10 +684,10 @@ fn expression_numeric_predicative(input: &str) -> IResult<&str, Expression> {
 
     fold_many0(
         pair(ws(alt((
-            value(BinaryOperator::LessThan, char('<')),
-            value(BinaryOperator::LessThanEqual, tag("<=")),
-            value(BinaryOperator::GreaterThan, char('>')),
             value(BinaryOperator::GreaterThanEqual, tag(">=")),
+            value(BinaryOperator::LessThanEqual, tag("<=")),
+            value(BinaryOperator::LessThan, char('<')),
+            value(BinaryOperator::GreaterThan, char('>')),
             value(BinaryOperator::StrictEqual, tag("==")),
             value(BinaryOperator::StrictNotEqual, tag("!=")),
             value(BinaryOperator::In, tag("in")),
@@ -695,7 +695,6 @@ fn expression_numeric_predicative(input: &str) -> IResult<&str, Expression> {
         move || init.clone(),
         |left, (operator, right)| {
             Expression::Binary(BinaryExpression { operator, left:Box::new(left), right: Box::new(right) })
-
         },
       )(input)
 }
@@ -933,7 +932,7 @@ mod test {
         for [expr, result,sep] in tests.into_iter().array_chunks() {
             assert_eq!("---", sep);
             let parsed = full_expression(expr);
-            let value = expression_literal(result);
+            let value = full_expression(result);
             assert!(parsed.is_ok());
             
             assert!(value.is_ok());
