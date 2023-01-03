@@ -24,10 +24,9 @@ The only operations that are allowed are:
 ## Todo
 
 * implement pattern matching
-* implement simple template literal strings
+* implement simple template literal strings (for string concatination)
 * implement advanced integer syntax (eg 10_000, maybe hex, oct and dual basis)
 * improve error reporting
-* implement a few more operators: array length, string length, object keys, string concatination, typeof
 
 The goal is to build a simple expression based language that is not turing complete but allows for simple pattern matching and data manipulation.
 It is made to be embeded as a sub language into other more powerful systems.

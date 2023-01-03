@@ -607,13 +607,25 @@ impl <'e> Environment<'e> {
         Ok(val.clone())
     }
 
-    fn eval_call<'x:'e>(&self, function: &Identifier, argument: &Value<'x>) -> Result<Value<'e>, EvalError> {
+    fn eval_call(&self, function: &Identifier, argument: &Value<'e>) -> Result<Value<'e>, EvalError> {
         Ok(match function.name.borrow() {
             Cow::Borrowed("length") => {
                 Value::Integer(match argument {
                     Value::String(s) => s.len() as i32,
                     Value::Array(a) => a.len() as i32,
                     Value::Object(o) => o.len() as i32,
+                    _ => return Err(EvalError::TypeError) 
+                })
+            },
+            Cow::Borrowed("keys") => {
+                Value::Array(match argument {
+                    Value::Object(o) => o.keys().map(|k| Cow::Owned(Value::String(Cow::Owned(k.to_string())))).collect(),
+                    _ => return Err(EvalError::TypeError) 
+                })
+            },
+            Cow::Borrowed("values") => {
+                Value::Array(match argument {
+                    Value::Object(o) => o.values().cloned().collect(),
                     _ => return Err(EvalError::TypeError) 
                 })
             },

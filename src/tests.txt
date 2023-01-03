@@ -175,3 +175,6 @@ Type
 type(type(true))
 Type
 ---
+values({x:23, y:42})
+[23, 42, ]
+---
