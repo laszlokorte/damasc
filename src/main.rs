@@ -10,6 +10,7 @@ use nom::combinator::{map, value, recognize, all_consuming, opt};
 use nom::error::ParseError;
 use nom::multi::{separated_list0, fold_many0};
 use nom::sequence::{delimited, separated_pair, preceded, pair, terminated};
+
 use rustyline::error::ReadlineError;
 use rustyline::{Editor};
 
@@ -518,6 +519,22 @@ impl <'e> Environment<'e> {
 
                 Ok(val)
             },
+            Value::String(s) => {
+                let Value::Integer(i) = prop else {
+                    return Err(EvalError::TypeError);
+                };
+                let index = if *i < 0 {
+                    s.len() - i.unsigned_abs() as usize
+                } else {
+                    *i as usize
+                };
+
+                let Some(val) = s.chars().nth(index).map(|v|v.clone().to_string()) else {
+                    return Err(EvalError::OutOfBound);
+                };
+
+                Ok(Value::String(Cow::Owned(val)))
+            },
             _ => Err(EvalError::TypeError),
         }
     }
@@ -913,11 +930,12 @@ mod test {
             bindings: BTreeMap::new(),
         };
 
-        for [expr, result] in tests.into_iter().array_chunks() {
+        for [expr, result,sep] in tests.into_iter().array_chunks() {
+            assert_eq!("---", sep);
             let parsed = full_expression(expr);
-            let value = expression_atom(result);
-
+            let value = expression_literal(result);
             assert!(parsed.is_ok());
+            
             assert!(value.is_ok());
 
             let evaled = env.eval_expr(&parsed.unwrap().1);
