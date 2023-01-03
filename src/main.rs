@@ -244,6 +244,7 @@ enum EvalError {
     MathDivision,
     KeyNotDefined,
     OutOfBound,
+    Overflow,
 }
 
 impl <'e> Environment<'e> {
@@ -325,7 +326,7 @@ impl <'e> Environment<'e> {
                 let Value::Integer(r) = right else {
                     return Err(EvalError::TypeError);
                 };
-                Ok(Value::Integer(*l + *r))
+                l.checked_add(*r).map(Value::Integer).map(Ok).unwrap_or(Err(EvalError::Overflow))
             },
             BinaryOperator::Minus => {
                 let Value::Integer(l) = left else {
@@ -334,7 +335,7 @@ impl <'e> Environment<'e> {
                 let Value::Integer(r) = right else {
                     return Err(EvalError::TypeError);
                 };
-                Ok(Value::Integer(*l - *r))
+                l.checked_sub(*r).map(Value::Integer).map(Ok).unwrap_or(Err(EvalError::Overflow))
             },
             BinaryOperator::Times => {
                 let Value::Integer(l) = left else {
@@ -343,7 +344,7 @@ impl <'e> Environment<'e> {
                 let Value::Integer(r) = right else {
                     return Err(EvalError::TypeError);
                 };
-                Ok(Value::Integer(*l * *r))
+                l.checked_mul(*r).map(Value::Integer).map(Ok).unwrap_or(Err(EvalError::Overflow))
             },
             BinaryOperator::Over => {
                 let Value::Integer(l) = left else {
@@ -355,7 +356,7 @@ impl <'e> Environment<'e> {
                 if *r == 0 {
                     return Err(EvalError::MathDivision);
                 }
-                Ok(Value::Integer(*l / *r))
+                l.checked_div(*r).map(Value::Integer).map(Ok).unwrap_or(Err(EvalError::Overflow))
             },
             BinaryOperator::Mod => {
                 let Value::Integer(l) = left else {
@@ -364,7 +365,7 @@ impl <'e> Environment<'e> {
                 let Value::Integer(r) = right else {
                     return Err(EvalError::TypeError);
                 };
-                Ok(Value::Integer(*l % *r))
+                l.checked_rem(*r).map(Value::Integer).map(Ok).unwrap_or(Err(EvalError::Overflow))
             },
             BinaryOperator::In => {
                 let Value::String(s) = left else {
@@ -382,7 +383,7 @@ impl <'e> Environment<'e> {
                 let Value::Integer(r) = right else {
                     return Err(EvalError::TypeError);
                 };
-                Ok(Value::Integer(i32::pow(*l,*r as u32)))
+                l.checked_pow(*r as u32).map(Value::Integer).map(Ok).unwrap_or(Err(EvalError::Overflow))
             },
         }
     }
