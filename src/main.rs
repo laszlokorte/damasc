@@ -1,7 +1,11 @@
 #![feature(iter_array_chunks)]
+#![feature(assert_matches)]
+#![feature(map_try_insert)]
+#![feature(let_chains)]
 
 use std::borrow::{Cow, Borrow};
-use std::collections::BTreeMap;
+use std::collections::btree_map::{Entry, OccupiedEntry};
+use std::collections::{BTreeMap, BTreeSet};
 use nom::IResult;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_until};
@@ -9,7 +13,7 @@ use nom::character::complete::{multispace0, i32, alpha1, char};
 use nom::combinator::{map, value, recognize, all_consuming, opt};
 use nom::error::ParseError;
 use nom::multi::{separated_list0, fold_many0};
-use nom::sequence::{delimited, separated_pair, preceded, pair, terminated};
+use nom::sequence::{delimited, separated_pair, preceded, pair, terminated, tuple};
 
 use rustyline::error::ReadlineError;
 use rustyline::{Editor};
@@ -124,11 +128,65 @@ impl <'a> std::fmt::Display for Value<'a> {
     }
 }
 
+#[derive(Clone, Debug)]
 enum Pattern<'a> {
+    Discard,
     Identifier(Identifier<'a>),
-    Object(ObjectPattern<'a>),
-    Array(),
-    RestElement(Box<Pattern<'a>>),
+    Object(ObjectPattern<'a>, Rest<'a>),
+    Array(ArrayPattern<'a>, Rest<'a>),
+}
+
+
+impl <'a> std::fmt::Display for Pattern<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let _ = match self {
+            Pattern::Discard => write!(f,"_"),
+            Pattern::Identifier(id) => write!(f,"{id}"),
+            Pattern::Object(props, rest) => {
+                
+                write!(f,"{{");
+
+                for prop in props {
+                    let _ = match prop {
+                        ObjectPropertyPattern::Single(p) => 
+                        write!(f,"{p}"),
+                        ObjectPropertyPattern::Match(PropertyPattern{
+                            key,
+                            value,
+                        }) => {
+                            match key {
+                                PropertyKey::Identifier(id) => {
+                                    write!(f,"{id}")
+                                },
+                                PropertyKey::Expression(e) => {
+                                    write!(f,"?")
+                                },
+                            }
+                        }
+                    };
+                }
+                
+                match rest {
+                    Rest::Exact => {},
+                    Rest::Discard => {let _ = write!(f,"...");},
+                    Rest::Collect(p) => {
+                       let _ =  write!(f,"...{p}");
+                    },
+                };
+
+                write!(f,"}}")
+            },
+            Pattern::Array(_, _) => todo!(),
+        };
+        write!(f,"")
+    }
+}
+
+#[derive(Clone, Debug)]
+enum Rest<'a> {
+    Exact,
+    Discard,
+    Collect(Box<Pattern<'a>>),
 }
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
@@ -142,17 +200,25 @@ impl std::fmt::Display for Identifier<'_> {
     }
 }
 
-type ObjectPattern<'a> = Vec<ObjectPatternPart<'a>>;
-type ArrayPattern<'a> = Vec<ArrayPatternPart<'a>>;
+type ObjectPattern<'a> = Vec<ObjectPropertyPattern<'a>>;
+type ArrayPattern<'a> = Vec<ArrayPatternItem<'a>>;
 
-enum ArrayPatternPart<'a> {
+#[derive(Clone, Debug)]
+enum ArrayPatternItem<'a> {
     Pattern(Pattern<'a>),
-    Expression(Expression<'a>),
+    //Expression(Expression<'a>),
 }
 
-enum ObjectPatternPart<'a> {
-    Assignment(Property<'a>),
-    Rest(Box<Pattern<'a>>),
+#[derive(Clone, Debug)]
+enum ObjectPropertyPattern<'a> {
+    Single(Identifier<'a>),
+    Match(PropertyPattern<'a>),
+}
+
+#[derive(Clone, Debug)]
+struct PropertyPattern<'a> {
+    key: PropertyKey<'a>,
+    value: Pattern<'a>,
 }
 
 #[derive(Clone, Debug)]
@@ -279,8 +345,14 @@ enum Literal<'a> {
 
 
 
-struct Environment<'e> {
-    bindings: BTreeMap<Identifier<'e>, Value<'e>>
+#[derive(Clone)]
+struct Environment<'i, 'e> {
+    bindings: BTreeMap<Identifier<'i>, Value<'e>>
+}
+
+struct Matcher<'e, 'i, 'm> {
+    env: &'e Environment<'i, 'm>,
+    bindings: BTreeMap<Identifier<'i>, Value<'m>>
 }
 
 #[derive(Debug)]
@@ -296,7 +368,101 @@ enum EvalError {
     UnknownFunction,
 }
 
-impl <'e> Environment<'e> {
+impl <'e, 'i,'m> Matcher<'e, 'i,'m> {
+    fn match_pattern(&mut self, pattern: &Pattern<'m>, value: Value<'m>) -> bool {
+        match (&pattern, &value) {
+            (Pattern::Discard, _) => true,
+            (Pattern::Identifier(name), _) => self.match_identifier(name, &value),
+            (Pattern::Object(pattern, rest), Value::Object(o)) => self.match_object(pattern, rest, o),
+            (Pattern::Array(items, rest), Value::Array(a)) => self.match_array(items, rest, a),
+            _ => false,
+        }
+    }
+
+    fn match_identifier<'x>(&mut self, name: &'x Identifier<'x>, value: &Value<'m>) -> bool {
+        let id = Identifier { name: Cow::Owned(name.name.to_string()) };
+
+        match self.bindings.entry(id) {
+            Entry::Occupied(entry) => value == entry.get(),
+            Entry::Vacant(entry) => {entry.insert(value.clone()); true},
+        }
+    }
+
+    fn match_object(&mut self, props: &[ObjectPropertyPattern<'m>], rest: &Rest<'m>, value: &BTreeMap<Cow<'m, str>, Cow<'m, Value<'m>>>) -> bool {
+        if let Rest::Exact = rest && value.len() != props.len(){
+            return false;
+        }
+
+        let mut keys = value.keys().collect::<BTreeSet<_>>();
+        for prop in props {
+            let (k, v) = match prop {
+                ObjectPropertyPattern::Single(key) => (key.name.clone(), Pattern::Identifier(key.clone())),
+                ObjectPropertyPattern::Match(PropertyPattern{key: PropertyKey::Identifier(key), value}) => (key.name.clone(), value.clone()),
+                ObjectPropertyPattern::Match(PropertyPattern{key: PropertyKey::Expression(exp), value}) => {
+                    let Ok(Value::String(k)) = self.env.eval_expr(exp) else {
+                        return false;
+                    };
+                    (k.clone(), value.clone())
+                },
+            };
+
+            if !keys.remove(&k) {
+                return false;
+            }
+
+            let Some(actual_value) = value.get(&k) else {
+                return false;
+            };
+
+            if !self.match_pattern(&v, actual_value.as_ref().clone()) {
+                return false;
+            }
+        }
+
+        let rest_matches = if let Rest::Collect(rest_pattern) = rest {
+            let remaining : BTreeMap<Cow<str>, Cow<Value>> = keys.iter().map(|&k| (k.clone(), value.get(k).unwrap().clone())).collect();
+            self.match_pattern(&rest_pattern, Value::Object(remaining))
+        } else {
+            true
+        };
+
+        rest_matches
+    }
+
+    fn match_array(&mut self, items: &[ArrayPatternItem<'m>], rest: &Rest<'m>, value: &Vec<Cow<'m, Value<'m>>>) -> bool {
+        if let Rest::Exact = rest && value.len() != items.len(){
+            return false;
+        }
+
+        if value.len() < items.len() {
+            return false;
+        }
+
+        for (item, val) in std::iter::zip(items, value.iter()) {
+            let ArrayPatternItem::Pattern(p) = item;
+            if !self.match_pattern(&p, val.as_ref().clone()) {
+                return false;
+            }
+        }
+        
+        let rest_matches = if let Rest::Collect(rest_pattern) = rest {
+            self.match_pattern(rest_pattern, Value::Array(value.iter().skip(items.len()).cloned().collect()))
+        } else {
+            true
+        };
+
+        rest_matches
+    }
+
+    fn clear(&mut self) {
+        self.bindings.clear();
+    }
+}
+
+impl <'i, 'e> Environment<'i, 'e> {
+
+    
+
     fn eval_lit<'x>(&self, literal: &'x Literal<'x>) -> Result<Value<'e>, EvalError> {
         match literal {
             Literal::Null => Ok(Value::Null),
@@ -636,6 +802,9 @@ impl <'e> Environment<'e> {
         })
     }
 
+
+
+
 }
 
 
@@ -949,19 +1118,99 @@ fn full_expression(input: &str) -> IResult<&str, Expression> {
     all_consuming(expression)(input)
 }
 
-enum Statement<'a> {
-    Inspect(Expression<'a>),
-    Format(Expression<'a>),
-    Eval(Expression<'a>),
-    Assign(Identifier<'a>, Expression<'a>),
+fn pattern_discard(input: &str) -> IResult<&str, Pattern> {
+    value(Pattern::Discard, tag("_"))(input)
+}
+
+
+fn pattern_identifier(input: &str) -> IResult<&str, Pattern> {
+    map(identifier, Pattern::Identifier)(input)
+}
+
+
+
+fn object_prop_pattern(input: &str) -> IResult<&str, ObjectPropertyPattern> {
+    alt((
+        map(
+            separated_pair(delimited(
+                ws(tag("[")),
+                expression,
+                ws(tag("]")),
+            ), ws(tag(":")), pattern), 
+            |(prop, value)| ObjectPropertyPattern::Match(PropertyPattern{key: PropertyKey::Expression(prop), value})),
+        map(
+            separated_pair(identifier, ws(tag(":")), pattern), 
+            |(prop, value)| ObjectPropertyPattern::Match(PropertyPattern{key: PropertyKey::Identifier(prop), value})),
+        map(identifier,  ObjectPropertyPattern::Single),
+    ))(input)
+} 
+
+fn pattern_object(input: &str) -> IResult<&str, Pattern> {
+    delimited(
+        ws(tag("{")),
+        alt((
+            map(pattern_rest, |r| Pattern::Object(vec![], r)),
+            map(tuple((
+                separated_list0(ws(ws(tag(","))), object_prop_pattern),
+                opt(preceded(ws(tag(",")), pattern_rest)),
+            )), |(props,rest)| Pattern::Object(props, rest.unwrap_or(Rest::Discard)))
+        )),
+        ws(tag("}")),
+    )(input)
+}
+
+fn pattern_rest(input: &str) -> IResult<&str, Rest> {
+    alt((
+        map(preceded(ws(tag("...")), pattern), |r| Rest::Collect(Box::new(r))),
+        value(Rest::Discard, ws(tag("..."))),
+    ))(input)
+}
+
+fn pattern_array(input: &str) -> IResult<&str, Pattern> {
+    delimited(
+        ws(tag("[")),
+        alt((
+            map(pattern_rest, |r| Pattern::Array(vec![], r)),
+            map(tuple((
+                separated_list0(
+                    ws(tag(",")), 
+                    map(pattern, ArrayPatternItem::Pattern)),
+                opt(preceded(ws(tag(",")), pattern_rest)))), |(items,rest)| Pattern::Array(items, rest.unwrap_or(Rest::Exact))),
+        )),
+        ws(tag("]")),
+    )(input)
+}
+
+fn pattern(input: &str) -> IResult<&str, Pattern> {
+    alt((
+        pattern_array,
+        pattern_discard,
+        pattern_identifier,
+        pattern_object,
+    ))(input)
+}
+
+fn full_pattern(input: &str) -> IResult<&str, Pattern> {
+    all_consuming(pattern)(input)
+}
+
+fn full_matching(input: &str) -> IResult<&str, (Pattern, Expression)> {
+    all_consuming(separated_pair(pattern, ws(tag("=")), expression))(input)
+}
+
+enum Statement<'a,'b> {
+    Inspect(Expression<'b>),
+    Format(Expression<'b>),
+    Eval(Expression<'b>),
+    Assign(Pattern<'a>, Expression<'b>),
 }
 
 fn assignment(input:&str) -> IResult<&str, Statement> {
     map(separated_pair(
-        identifier, 
+        pattern, 
         ws(tag(":=")), 
         full_expression), 
-        |(id, expr)| Statement::Assign(id, expr))(input)
+        |(pat, expr)| Statement::Assign(pat, expr))(input)
 }
 
 fn statement(input:&str) -> IResult<&str, Statement> {
@@ -1016,7 +1265,11 @@ fn main() -> rustyline::Result<()>{
                         println!("{result}");
 
                     },
-                    Statement::Assign(Identifier{name}, ex) => {
+                    Statement::Assign(pattern, ex) => {
+                        let mut matcher = Matcher {
+                            env: &env,
+                            bindings: BTreeMap::new(),
+                        };
                         let result = match env.eval_expr(&ex) {
                             Ok(r) => r,
                             Err(err) => {
@@ -1024,10 +1277,10 @@ fn main() -> rustyline::Result<()>{
                                 continue;
                             },
                         };
-                        let id = Identifier { name: Cow::Owned(name.to_string()) };
-                        env.bindings.insert(id.clone(), result.to_owned());
+                        //matcher.bindings.insert(Identifier { name: "c".into() }, result.clone());
+                        //matcher.match_pattern(&pattern, result.clone());
 
-                        println!("{id} := {result}");
+                        println!("{pattern} := {result}");
                     }
                 };
 
@@ -1053,11 +1306,13 @@ fn main() -> rustyline::Result<()>{
 
 #[cfg(test)]
 mod test {
+    use std::assert_matches::assert_matches;
+
     use super::*;
 
     #[test]
-    fn test_many() {
-        let tests = include_str!("tests.txt").lines();
+    fn test_expressions() {
+        let tests = include_str!("test_expressions.txt").lines();
         let env = Environment {
             bindings: BTreeMap::new(),
         };
@@ -1077,6 +1332,64 @@ mod test {
             assert!(valued_evaled.is_ok());
 
             assert_eq!(evaled.unwrap(), valued_evaled.unwrap());
+        }
+
+    }
+    
+
+    #[test]
+    fn test_patterns() {
+        let tests = include_str!("test_patterns.txt").lines();
+        let env = Environment {
+            bindings: BTreeMap::new(),
+        };
+        let mut matcher = Matcher {
+            env: &env,
+            bindings: BTreeMap::new(),
+        };
+
+        for case in tests {
+            matcher.clear();
+            let Ok((_, (pattern, expr))) = full_matching(case) else {
+                dbg!(case);
+                unreachable!();
+            };
+
+            let Ok(value) = env.eval_expr(&expr) else {
+                unreachable!();
+            };
+            dbg!(case);
+
+            assert!(matcher.match_pattern(&pattern, value));
+        }
+
+    }
+
+    #[test]
+    fn test_negative_patterns() {
+        let tests = include_str!("test_negative_patterns.txt").lines();
+        let env = Environment {
+            bindings: BTreeMap::new(),
+        };
+        let mut matcher = Matcher {
+            env: &env,
+            bindings: BTreeMap::new(),
+        };
+
+
+        for case in tests {
+            matcher.clear();
+            let Ok((_, (pattern, expr))) = full_matching(case) else {
+                dbg!(case);
+                unreachable!();
+            };
+
+            let Ok(value) = env.eval_expr(&expr) else {
+                unreachable!();
+            };
+            dbg!(case);
+
+            assert!(!matcher.match_pattern(&pattern, value));
         }
 
     }
