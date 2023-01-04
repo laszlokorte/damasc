@@ -19,13 +19,13 @@ use rustyline::error::ReadlineError;
 use rustyline::{Editor};
 
 #[derive(Debug, Clone,Eq,PartialEq,Ord,PartialOrd)]
-enum Value<'a> {
+enum Value<'s, 'v> {
     Null,
-    String(Cow<'a, str>),
+    String(Cow<'s, str>),
     Integer(i32),
     Boolean(bool),
-    Array(Vec<Cow<'a, Value<'a>>>),
-    Object(BTreeMap<Cow<'a, str>, Cow<'a, Value<'a>>>),
+    Array(Vec<Cow<'v, Value<'s,'v>>>),
+    Object(BTreeMap<Cow<'s, str>, Cow<'v, Value<'s,'v>>>),
     Type(ValueType),
 }
 
@@ -46,7 +46,7 @@ impl std::fmt::Display for ValueType {
     }
 }
 
-impl <'a> Value<'a> {
+impl <'s, 'v> Value<'s, 'v> {
     fn new_null() -> Self {
         Self::Null
     }
@@ -63,11 +63,11 @@ impl <'a> Value<'a> {
         Self::Boolean(v)
     }
 
-    fn new_array(v: &'a [Value<'a>]) -> Self {
+    fn new_array(v: &'v [Value<'s, 'v>]) -> Self {
         Self::Array(v.iter().map(Cow::Borrowed).collect())
     }
 
-    fn new_object<'x:'a>(v: &'x [(String, Value<'a>)]) -> Self {
+    fn new_object<'x:'v>(v: &'x [(String, Value<'s, 'v>)]) -> Self {
         Self::Object(v.iter().map(|(k,v)| (Cow::Owned(k.clone()), Cow::Borrowed(v))).collect())
     }
 
@@ -100,7 +100,7 @@ impl <'a> Value<'a> {
     }
 }
 
-impl <'a> std::fmt::Display for Value<'a> {
+impl <'s, 'v> std::fmt::Display for Value<'s, 'v> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let _ = match self {
             Value::Null => write!(f,"null"),
@@ -129,11 +129,11 @@ impl <'a> std::fmt::Display for Value<'a> {
 }
 
 #[derive(Clone, Debug)]
-enum Pattern<'a> {
+enum Pattern<'s> {
     Discard,
-    Identifier(Identifier<'a>),
-    Object(ObjectPattern<'a>, Rest<'a>),
-    Array(ArrayPattern<'a>, Rest<'a>),
+    Identifier(Identifier<'s>),
+    Object(ObjectPattern<'s>, Rest<'s>),
+    Array(ArrayPattern<'s>, Rest<'s>),
 }
 
 
@@ -183,10 +183,10 @@ impl <'a> std::fmt::Display for Pattern<'a> {
 }
 
 #[derive(Clone, Debug)]
-enum Rest<'a> {
+enum Rest<'s> {
     Exact,
     Discard,
-    Collect(Box<Pattern<'a>>),
+    Collect(Box<Pattern<'s>>),
 }
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
@@ -222,16 +222,16 @@ struct PropertyPattern<'a> {
 }
 
 #[derive(Clone, Debug)]
-enum Expression<'a> {
-    Array(ArrayExpression<'a>),
-    Binary(BinaryExpression<'a>),
-    Identifier(Identifier<'a>),
-    Literal(Literal<'a>),
-    Logical(LogicalExpression<'a>),
-    Member(MemberExpression<'a>),
-    Object(ObjectExpression<'a>),
-    Unary(UnaryExpression<'a>),
-    Call(CallExpression<'a>)
+enum Expression<'s> {
+    Array(ArrayExpression<'s>),
+    Binary(BinaryExpression<'s>),
+    Identifier(Identifier<'s>),
+    Literal(Literal<'s>),
+    Logical(LogicalExpression<'s>),
+    Member(MemberExpression<'s>),
+    Object(ObjectExpression<'s>),
+    Unary(UnaryExpression<'s>),
+    Call(CallExpression<'s>)
 }
 
 type ArrayExpression<'a> = Vec<ArrayItem<'a>>;
@@ -335,10 +335,10 @@ struct MemberExpression<'a> {
 }
 
 #[derive(Clone, Debug)]
-enum Literal<'a> {
+enum Literal<'s> {
     Null,
-    String(Cow<'a, str>),
-    Number(Cow<'a, str>),
+    String(Cow<'s, str>),
+    Number(Cow<'s, str>),
     Boolean(bool),
     Type(ValueType),
 }
@@ -346,13 +346,13 @@ enum Literal<'a> {
 
 
 #[derive(Clone)]
-struct Environment<'i, 'e> {
-    bindings: BTreeMap<Identifier<'i>, Value<'e>>
+struct Environment<'i, 's, 'v> {
+    bindings: BTreeMap<Identifier<'i>, Value<'s, 'v>>
 }
 
-struct Matcher<'e, 'i, 'm> {
-    env: &'e Environment<'i, 'm>,
-    bindings: BTreeMap<Identifier<'i>, Value<'m>>
+struct Matcher<'i, 's, 'v, 'e> {
+    env: &'e Environment<'i, 's, 'v>,
+    bindings: BTreeMap<Identifier<'i>, Value<'s, 'v>>
 }
 
 #[derive(Debug)]
@@ -368,8 +368,8 @@ enum EvalError {
     UnknownFunction,
 }
 
-impl <'e, 'i,'m> Matcher<'e, 'i,'m> {
-    fn match_pattern(&mut self, pattern: &Pattern<'m>, value: Value<'m>) -> bool {
+impl <'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
+    fn match_pattern<'x>(&'x mut self, pattern: &'x Pattern<'s>, value: Value<'s,'v>) -> bool {
         match (&pattern, &value) {
             (Pattern::Discard, _) => true,
             (Pattern::Identifier(name), _) => self.match_identifier(name, &value),
@@ -379,7 +379,7 @@ impl <'e, 'i,'m> Matcher<'e, 'i,'m> {
         }
     }
 
-    fn match_identifier<'x>(&mut self, name: &'x Identifier<'x>, value: &Value<'m>) -> bool {
+    fn match_identifier<'x>(&'x mut self, name: &'x Identifier<'x>, value: &Value<'s, 'v>) -> bool {
         let id = Identifier { name: Cow::Owned(name.name.to_string()) };
 
         match self.bindings.entry(id) {
@@ -388,7 +388,7 @@ impl <'e, 'i,'m> Matcher<'e, 'i,'m> {
         }
     }
 
-    fn match_object(&mut self, props: &[ObjectPropertyPattern<'m>], rest: &Rest<'m>, value: &BTreeMap<Cow<'m, str>, Cow<'m, Value<'m>>>) -> bool {
+    fn match_object<'x>(&'x mut self, props: &[ObjectPropertyPattern<'s>], rest: &Rest<'s>, value: &BTreeMap<Cow<'s, str>, Cow<'v, Value<'s,'v>>>) -> bool {
         if let Rest::Exact = rest && value.len() != props.len(){
             return false;
         }
@@ -429,7 +429,7 @@ impl <'e, 'i,'m> Matcher<'e, 'i,'m> {
         rest_matches
     }
 
-    fn match_array(&mut self, items: &[ArrayPatternItem<'m>], rest: &Rest<'m>, value: &Vec<Cow<'m, Value<'m>>>) -> bool {
+    fn match_array<'x>(&'x mut self, items: &[ArrayPatternItem<'s>], rest: &Rest<'s>, value: &Vec<Cow<'v, Value<'s,'v>>>) -> bool {
         if let Rest::Exact = rest && value.len() != items.len(){
             return false;
         }
@@ -459,21 +459,21 @@ impl <'e, 'i,'m> Matcher<'e, 'i,'m> {
     }
 }
 
-impl <'i, 'e> Environment<'i, 'e> {
+impl <'i, 's, 'v> Environment<'i, 's, 'v> {
 
     
 
-    fn eval_lit<'x>(&self, literal: &'x Literal<'x>) -> Result<Value<'e>, EvalError> {
+    fn eval_lit<'x>(&self, literal: &'x Literal<'x>) -> Result<Value<'s,'v>, EvalError> {
         match literal {
             Literal::Null => Ok(Value::Null),
-            Literal::String(s) => Ok(Value::<'e>::String(Cow::Owned(s.to_string()))),
+            Literal::String(s) => Ok(Value::<'s,'v>::String(Cow::Owned(s.to_string()))),
             Literal::Number(s) => str::parse::<i32>(s).map(Value::Integer).map(Ok).unwrap_or(Err(EvalError::InvalidNumber)),
             Literal::Boolean(b) => Ok(Value::Boolean(*b)),
             Literal::Type(t) => Ok(Value::Type(*t)),
         }
     }
     
-    fn eval_expr<'x>(&self, expression: &'x Expression<'x>) -> Result<Value<'e>, EvalError> {
+    fn eval_expr<'x>(&self, expression: &'x Expression<'x>) -> Result<Value<'s,'v>, EvalError> {
         match expression {
             Expression::Array(vec) => self.eval_array(vec),
             Expression::Binary(BinaryExpression{operator,left,right}) => 
@@ -492,7 +492,7 @@ impl <'i, 'e> Environment<'i, 'e> {
         }
     }
     
-    fn eval_binary<'x>(&self, op: &BinaryOperator, left: &Value<'x>, right: &Value<'x>) -> Result<Value<'e>, EvalError> {
+    fn eval_binary<'x>(&self, op: &BinaryOperator, left: &Value<'s,'x>, right: &Value<'s,'x>) -> Result<Value<'s,'v>, EvalError> {
         match op {
             BinaryOperator::StrictEqual => {
                 Ok(Value::Boolean(left == right))
@@ -613,7 +613,7 @@ impl <'i, 'e> Environment<'i, 'e> {
         }
     }
 
-    fn eval_unary(&self, op: &UnaryOperator, arg: &Value) -> Result<Value<'e>, EvalError> {
+    fn eval_unary(&self, op: &UnaryOperator, arg: &Value) -> Result<Value<'s,'v>, EvalError> {
         match op {
             UnaryOperator::Minus => {
                 let Value::Integer(v) = arg else {
@@ -636,7 +636,7 @@ impl <'i, 'e> Environment<'i, 'e> {
         }
     }
 
-    fn eval_object<'x>(&self, props: &'x ObjectExpression<'x>) -> Result<Value<'e>, EvalError> {
+    fn eval_object<'x>(&self, props: &'x ObjectExpression<'x>) -> Result<Value<'s,'v>, EvalError> {
         let mut kv_map = BTreeMap::new();
 
         for prop in props {
@@ -674,10 +674,10 @@ impl <'i, 'e> Environment<'i, 'e> {
             }
         };
 
-        Ok(Value::<'e>::Object(kv_map))
+        Ok(Value::<'s,'v>::Object(kv_map))
     }
 
-    fn eval_array<'x>(&self, vec: &'x [ArrayItem<'x>]) -> Result<Value<'e>, EvalError> {
+    fn eval_array<'x>(&self, vec: &'x [ArrayItem<'x>]) -> Result<Value<'s,'v>, EvalError> {
         let mut result = vec![];
 
         for item in vec {
@@ -701,7 +701,7 @@ impl <'i, 'e> Environment<'i, 'e> {
         Ok(Value::Array(result))
     }
 
-    fn eval_logic<'x>(&self, operator: &LogicalOperator, left: &'x Expression<'x>, right: &'x Expression<'x>) -> Result<Value<'e>, EvalError> {
+    fn eval_logic<'x>(&self, operator: &LogicalOperator, left: &'x Expression<'x>, right: &'x Expression<'x>) -> Result<Value<'s,'v>, EvalError> {
         let left_value = self.eval_expr(left)?;
         let Value::Boolean(left_bool) = left_value else {
             return Err(EvalError::TypeError);
@@ -716,7 +716,7 @@ impl <'i, 'e> Environment<'i, 'e> {
         return Ok(Value::Boolean(right_bool));
     }
 
-    fn eval_member<'x:'e>(&self, obj: &Value<'x>, prop: &Value<'x>) -> Result<Value<'x>, EvalError> {
+    fn eval_member<'x:'v>(&self, obj: &Value<'s,'x>, prop: &Value<'s,'x>) -> Result<Value<'s,'x>, EvalError> {
         match obj {
             Value::Object(o) => {
                 let Value::String(p) = prop else {
@@ -765,7 +765,7 @@ impl <'i, 'e> Environment<'i, 'e> {
         }
     }
 
-    fn eval_identifier(&self, id: &Identifier) -> Result<Value<'e>, EvalError> {
+    fn eval_identifier(&self, id: &Identifier) -> Result<Value<'s,'v>, EvalError> {
         let Some(val) = self.bindings.get(id) else {
             return Err(EvalError::UnknownIdentifier);
         };
@@ -773,9 +773,9 @@ impl <'i, 'e> Environment<'i, 'e> {
         Ok(val.clone())
     }
 
-    fn eval_call(&self, function: &Identifier, argument: &Value<'e>) -> Result<Value<'e>, EvalError> {
-        Ok(match function.name.borrow() {
-            Cow::Borrowed("length") => {
+    fn eval_call(&self, function: &Identifier, argument: &Value<'s,'v>) -> Result<Value<'s,'v>, EvalError> {
+        Ok(match function.name.as_ref() {
+            "length" => {
                 Value::Integer(match argument {
                     Value::String(s) => s.len() as i32,
                     Value::Array(a) => a.len() as i32,
@@ -783,22 +783,24 @@ impl <'i, 'e> Environment<'i, 'e> {
                     _ => return Err(EvalError::TypeError) 
                 })
             },
-            Cow::Borrowed("keys") => {
+            "keys" => {
                 Value::Array(match argument {
                     Value::Object(o) => o.keys().map(|k| Cow::Owned(Value::String(Cow::Owned(k.to_string())))).collect(),
                     _ => return Err(EvalError::TypeError) 
                 })
             },
-            Cow::Borrowed("values") => {
+            "values" => {
                 Value::Array(match argument {
                     Value::Object(o) => o.values().cloned().collect(),
                     _ => return Err(EvalError::TypeError) 
                 })
             },
-            Cow::Borrowed("type") => {
+            "type" => {
                 Value::Type(argument.get_type())
             }
-            _ => return Err(EvalError::UnknownFunction)
+            _ => {
+                return Err(EvalError::UnknownFunction)
+            }
         })
     }
 
@@ -808,7 +810,7 @@ impl <'i, 'e> Environment<'i, 'e> {
 }
 
 
-fn array_item_expression(input: &str) -> IResult<&str, ArrayItem> {
+fn array_item_expression<'s,'v>(input: &'s str) -> IResult<&'s str, ArrayItem<'v>> {
     alt((
         map(preceded(ws(tag("...")), expression), ArrayItem::Spread),
         map(expression, ArrayItem::Single)))
@@ -826,7 +828,7 @@ fn ws<'a, F, O, E: ParseError<&'a str>>(inner: F) -> impl FnMut(&'a str) -> IRes
   )
 }
 
-fn expression_call(input: &str) -> IResult<&str, Expression> {
+fn expression_call<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     map(pair(
         identifier,
         delimited(
@@ -839,7 +841,7 @@ fn expression_call(input: &str) -> IResult<&str, Expression> {
     )(input)
 }
 
-fn expression_array(input: &str) -> IResult<&str, Expression> {
+fn expression_array<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     delimited(
         ws(tag("[")),
         terminated(
@@ -849,7 +851,7 @@ fn expression_array(input: &str) -> IResult<&str, Expression> {
     )(input)
 }
 
-fn object_prop_expression(input: &str) -> IResult<&str, ObjectProperty> {
+fn object_prop_expression<'s,'v>(input: &'s str) -> IResult<&'s str, ObjectProperty<'v>> {
     alt((
         map(
             separated_pair(delimited(
@@ -866,7 +868,7 @@ fn object_prop_expression(input: &str) -> IResult<&str, ObjectProperty> {
     ))(input)
 } 
 
-fn expression_object(input: &str) -> IResult<&str, Expression> {
+fn expression_object<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     delimited(
         ws(tag("{")),
         terminated(
@@ -876,7 +878,7 @@ fn expression_object(input: &str) -> IResult<&str, Expression> {
     )(input)
 }
 
-fn expression_literal(input: &str) -> IResult<&str, Expression> {
+fn expression_literal<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     alt((
         expression_object,
         expression_array,
@@ -885,7 +887,7 @@ fn expression_literal(input: &str) -> IResult<&str, Expression> {
     ))(input)
 }
 
-fn expression_atom(input:&str) -> IResult<&str, Expression> {
+fn expression_atom<'s,'v>(input:&'s str) -> IResult<&'s str, Expression<'v>> {
     map(alt((
         literal_null,
         literal_string,
@@ -895,34 +897,34 @@ fn expression_atom(input:&str) -> IResult<&str, Expression> {
     )), Expression::Literal)(input)
 }
 
-fn expression_identifier(input: &str) -> IResult<&str, Expression> {
+fn expression_identifier<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     map(identifier, Expression::Identifier)(input)
 }
 
-fn literal_null(input: &str) -> IResult<&str, Literal> {
+fn literal_null<'s,'v>(input: &'s str) -> IResult<&'s str, Literal<'v>> {
     value(Literal::Null, tag("null"))(input)
 }
 
-fn literal_string(input: &str) -> IResult<&str, Literal> {
-    map(delimited(tag("\""), take_until("\""), tag("\"")), |v| Literal::String(Cow::Borrowed(v)))(input)
+fn literal_string<'s,'v>(input: &'s str) -> IResult<&'s str, Literal<'v>> {
+    map(delimited(tag("\""), take_until("\""), tag("\"")), |v:&str| Literal::String(Cow::Owned(v.to_string())))(input)
 }
 
-fn literal_bool(input: &str) -> IResult<&str, Literal> {
+fn literal_bool<'s,'v>(input: &'s str) -> IResult<&'s str, Literal<'v>> {
     alt((
         value(Literal::Boolean(true), tag("true")),
         value(Literal::Boolean(false), tag("false"))
     ))(input)
 }
 
-fn literal_number(input: &str) -> IResult<&str, Literal> {
-    map(recognize(i32), |s| Literal::Number(Cow::Borrowed(s)))(input)
+fn literal_number<'s,'v>(input: &'s str) -> IResult<&'s str, Literal<'v>> {
+    map(recognize(i32), |s:&str| Literal::Number(Cow::Owned(s.to_owned())))(input)
 }
 
-fn identifier(input: &str) -> IResult<&str, Identifier> {
-    map(alpha1, |name| Identifier{name: Cow::Borrowed(name)})(input)
+fn identifier<'s,'v>(input: &'s str) -> IResult<&'s str, Identifier<'v>> {
+    map(alpha1, |name:&str| Identifier{name: Cow::Owned(name.to_string())})(input)
 }
 
-fn expression_logic_additive(input: &str) -> IResult<&str, Expression> {
+fn expression_logic_additive<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     let (input, init) = expression_logic_multiplicative(input)?;
 
     fold_many0(
@@ -937,7 +939,7 @@ fn expression_logic_additive(input: &str) -> IResult<&str, Expression> {
       )(input)
 }
 
-fn expression_logic_multiplicative(input: &str) -> IResult<&str, Expression> {
+fn expression_logic_multiplicative<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     let (input, init) = expression_type_predicate(input)?;
 
     fold_many0(
@@ -952,7 +954,7 @@ fn expression_logic_multiplicative(input: &str) -> IResult<&str, Expression> {
       )(input)
 }
 
-fn literal_type(input: &str) -> IResult<&str, Literal> {
+fn literal_type<'s,'v>(input: &'s str) -> IResult<&'s str, Literal<'v>> {
     map(alt((
         value(ValueType::Type, tag("Type")),
         value(ValueType::Null, tag("Null")),
@@ -964,7 +966,7 @@ fn literal_type(input: &str) -> IResult<&str, Literal> {
     )), Literal::Type)(input)
 }
 
-fn expression_type_predicate(input: &str) -> IResult<&str, Expression>  {
+fn expression_type_predicate<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>>  {
     let (input, init) = expression_numeric_predicative(input)?;
 
     let Ok((input, t)) = preceded(ws(tag("is")), expression_numeric_predicative)(input) else {
@@ -978,7 +980,7 @@ fn expression_type_predicate(input: &str) -> IResult<&str, Expression>  {
         })))
 }
 
-fn expression_numeric_predicative(input: &str) -> IResult<&str, Expression> {
+fn expression_numeric_predicative<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     let (input, init) = expression_numeric_additive(input)?;
 
     fold_many0(
@@ -998,7 +1000,7 @@ fn expression_numeric_predicative(input: &str) -> IResult<&str, Expression> {
       )(input)
 }
 
-fn expression_numeric_additive(input: &str) -> IResult<&str, Expression> {
+fn expression_numeric_additive<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     let (input, init) = expression_numeric_multiplicative(input)?;
 
     fold_many0(
@@ -1014,7 +1016,7 @@ fn expression_numeric_additive(input: &str) -> IResult<&str, Expression> {
       )(input)
 }
 
-fn expression_numeric_multiplicative(input: &str) -> IResult<&str, Expression> {
+fn expression_numeric_multiplicative<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     let (input, init) = expression_numeric_exponential(input)?;
 
     fold_many0(
@@ -1031,7 +1033,7 @@ fn expression_numeric_multiplicative(input: &str) -> IResult<&str, Expression> {
       )(input)
 }
 
-fn expression_numeric_exponential(input: &str) -> IResult<&str, Expression> {
+fn expression_numeric_exponential<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     let (input, init) = expression_indexed(input)?;
 
     fold_many0(
@@ -1047,7 +1049,7 @@ fn expression_numeric_exponential(input: &str) -> IResult<&str, Expression> {
 }
 
 
-fn expression_indexed(input: &str) -> IResult<&str, Expression> {
+fn expression_indexed<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     let (input, init) = expression_member(input)?;
 
     fold_many0(
@@ -1059,7 +1061,7 @@ fn expression_indexed(input: &str) -> IResult<&str, Expression> {
       )(input)
 }
 
-fn expression_member(input: &str) -> IResult<&str, Expression> {
+fn expression_member<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     let (input, init) = expression_primary(input)?;
 
     fold_many0(
@@ -1073,7 +1075,7 @@ fn expression_member(input: &str) -> IResult<&str, Expression> {
       )(input)
 }
 
-fn expression_primary(input: &str) -> IResult<&str, Expression> {
+fn expression_primary<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     alt((
         expression_with_paren,
         expression_literal,
@@ -1082,15 +1084,15 @@ fn expression_primary(input: &str) -> IResult<&str, Expression> {
     ))(input)
 }
 
-fn expression_with_paren(input: &str) -> IResult<&str, Expression> {
+fn expression_with_paren<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     delimited(tag("("), expression, tag(")"))(input)
 }
 
-fn expression_unary(input: &str) -> IResult<&str, Expression> {
+fn expression_unary<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     alt((expression_unary_logic, expression_unary_numeric))(input)
 }
 
-fn expression_unary_logic(input: &str) -> IResult<&str, Expression> {
+fn expression_unary_logic<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     map(pair(ws(alt((
         value(UnaryOperator::Not, tag("!")),
     ))), expression_primary), 
@@ -1098,7 +1100,7 @@ fn expression_unary_logic(input: &str) -> IResult<&str, Expression> {
     Expression::Unary(UnaryExpression{operator, argument: Box::new(argument)}))(input)
 }
 
-fn expression_unary_numeric(input: &str) -> IResult<&str, Expression> {
+fn expression_unary_numeric<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     map(pair(ws(alt((
         value(UnaryOperator::Minus, tag("-")),
         value(UnaryOperator::Plus, tag("+")),
@@ -1108,28 +1110,28 @@ fn expression_unary_numeric(input: &str) -> IResult<&str, Expression> {
     Expression::Unary(UnaryExpression{operator, argument: Box::new(argument)}))(input)
 }
 
-fn expression(input: &str) -> IResult<&str, Expression> {
+fn expression<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     alt((
         expression_logic_additive,
     ))(input)
 }
 
-fn full_expression(input: &str) -> IResult<&str, Expression> {
+fn full_expression<'s,'v>(input: &'s str) -> IResult<&'s str, Expression<'v>> {
     all_consuming(expression)(input)
 }
 
-fn pattern_discard(input: &str) -> IResult<&str, Pattern> {
+fn pattern_discard<'s, 'v>(input: &'s str) -> IResult<&'s str, Pattern<'v>> {
     value(Pattern::Discard, tag("_"))(input)
 }
 
 
-fn pattern_identifier(input: &str) -> IResult<&str, Pattern> {
+fn pattern_identifier<'s, 'v>(input: &'s str) -> IResult<&'s str, Pattern<'v>> {
     map(identifier, Pattern::Identifier)(input)
 }
 
 
 
-fn object_prop_pattern(input: &str) -> IResult<&str, ObjectPropertyPattern> {
+fn object_prop_pattern<'s, 'v>(input: &'s str) -> IResult<&'s str, ObjectPropertyPattern<'v>> {
     alt((
         map(
             separated_pair(delimited(
@@ -1145,7 +1147,7 @@ fn object_prop_pattern(input: &str) -> IResult<&str, ObjectPropertyPattern> {
     ))(input)
 } 
 
-fn pattern_object(input: &str) -> IResult<&str, Pattern> {
+fn pattern_object<'s, 'v>(input: &'s str) -> IResult<&'s str, Pattern<'v>> {
     delimited(
         ws(tag("{")),
         alt((
@@ -1159,14 +1161,14 @@ fn pattern_object(input: &str) -> IResult<&str, Pattern> {
     )(input)
 }
 
-fn pattern_rest(input: &str) -> IResult<&str, Rest> {
+fn pattern_rest<'s, 'v>(input: &'s str) -> IResult<&'s str, Rest<'v>> {
     alt((
         map(preceded(ws(tag("...")), pattern), |r| Rest::Collect(Box::new(r))),
         value(Rest::Discard, ws(tag("..."))),
     ))(input)
 }
 
-fn pattern_array(input: &str) -> IResult<&str, Pattern> {
+fn pattern_array<'s, 'v>(input: &'s str) -> IResult<&'s str, Pattern<'v>> {
     delimited(
         ws(tag("[")),
         alt((
@@ -1181,7 +1183,7 @@ fn pattern_array(input: &str) -> IResult<&str, Pattern> {
     )(input)
 }
 
-fn pattern(input: &str) -> IResult<&str, Pattern> {
+fn pattern<'s, 'v>(input: &'s str) -> IResult<&'s str, Pattern<'v>> {
     alt((
         pattern_array,
         pattern_discard,
@@ -1205,7 +1207,7 @@ enum Statement<'a,'b> {
     Assign(Pattern<'a>, Expression<'b>),
 }
 
-fn assignment(input:&str) -> IResult<&str, Statement> {
+fn assignment<'s,'v,'w>(input:&'s str) -> IResult<&'s str, Statement<'v,'w>> {
     map(separated_pair(
         pattern, 
         ws(tag(":=")), 
@@ -1213,7 +1215,7 @@ fn assignment(input:&str) -> IResult<&str, Statement> {
         |(pat, expr)| Statement::Assign(pat, expr))(input)
 }
 
-fn statement(input:&str) -> IResult<&str, Statement> {
+fn statement<'a,'b,'c>(input:&'c str) -> IResult<&'c str, Statement<'a,'b>> {
     alt((
         map(preceded(tag(".inspect "), full_expression), Statement::Inspect),
         map(preceded(tag(".format "), full_expression), Statement::Format),
@@ -1223,7 +1225,7 @@ fn statement(input:&str) -> IResult<&str, Statement> {
 }
 
 fn main() -> rustyline::Result<()>{
-    let mut env = Environment {
+    let env = Environment {
         bindings: BTreeMap::new(),
     };
 
@@ -1277,8 +1279,8 @@ fn main() -> rustyline::Result<()>{
                                 continue;
                             },
                         };
-                        //matcher.bindings.insert(Identifier { name: "c".into() }, result.clone());
-                        //matcher.match_pattern(&pattern, result.clone());
+                        matcher.bindings.insert(Identifier { name: "c".into() }, result.clone());
+                        matcher.match_pattern(&pattern, result.clone());
 
                         println!("{pattern} := {result}");
                     }
@@ -1328,6 +1330,7 @@ mod test {
             let evaled = env.eval_expr(&parsed.unwrap().1);
             let valued_evaled = env.eval_expr(&value.unwrap().1);
 
+            dbg!(&expr);
             assert!(evaled.is_ok());
             assert!(valued_evaled.is_ok());
 
