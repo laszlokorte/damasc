@@ -195,28 +195,32 @@ mod test {
 
     #[test]
     fn test_expressions() {
-        let tests = include_str!("test_expressions.txt").lines();
+        let mut tests = include_str!("test_expressions.txt").lines().array_chunks();
         let env = Environment {
             bindings: BTreeMap::new(),
         };
 
-        for [expr, result, sep] in tests.into_iter().array_chunks() {
-            assert_eq!("---", sep);
+        for [expr, result, sep] in &mut tests {
+            assert_eq!("---", sep, "Expression pairs are separated by --- line");
             let parsed = full_expression(expr);
             let value = full_expression(result);
-            assert!(parsed.is_ok());
+            assert!(parsed.is_ok(), "Expression A can be parsed");
 
-            assert!(value.is_ok());
+            assert!(value.is_ok(), "Expression B can be parsed");
 
             let evaled = env.eval_expr(&parsed.unwrap().1);
             let valued_evaled = env.eval_expr(&value.unwrap().1);
 
-            dbg!(&expr);
-            assert!(evaled.is_ok());
-            assert!(valued_evaled.is_ok());
+            assert!(evaled.is_ok(), "Expression A can be evaluated");
+            assert!(valued_evaled.is_ok(), "Expression B can be parsed");
 
-            assert_eq!(evaled.unwrap(), valued_evaled.unwrap());
+            assert_eq!(evaled.unwrap(), valued_evaled.unwrap(), "Expression A and B evaluate to the same value");
         }
+
+        let Some(e) = tests.into_remainder() else {
+            unreachable!("Number of Test Expression lines are multiple of 3");
+        };
+        assert_eq!(e.count(), 0, "Last expression pair is followed terminated by ---");
     }
 
     #[test]
@@ -233,16 +237,14 @@ mod test {
             };
 
             let Ok((_, Statement::Match(pattern, expr))) = try_match(case) else {
-                dbg!(case);
-                unreachable!();
+                unreachable!("Test Pattern and Expression can be parsed");
             };
 
             let Ok(value) = env.eval_expr(&expr) else {
-                unreachable!();
+                unreachable!("TestExpression can be evaluated");
             };
-            dbg!(case);
 
-            assert_matches!(matcher.match_pattern(&pattern, value), Ok(_));
+            assert_matches!(matcher.match_pattern(&pattern, value), Ok(_), "Test Expression Value matches the test pattern");
         }
     }
 
@@ -260,15 +262,15 @@ mod test {
             };
             let Ok((_, Statement::Match(pattern, expr))) = try_match(case) else {
                 dbg!(case);
-                unreachable!();
+                unreachable!("Test Pattern and Expression can be parsed");
             };
 
             let Ok(value) = env.eval_expr(&expr) else {
-                unreachable!();
+                unreachable!("TestExpression can be evaluated");
             };
             dbg!(case);
 
-            assert_matches!(matcher.match_pattern(&pattern, value), Err(_));
+            assert_matches!(matcher.match_pattern(&pattern, value), Err(_), "Test Expression Value does not match the test pattern");
         }
     }
 }
