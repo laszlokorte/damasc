@@ -32,6 +32,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "damasc"
+version = "0.1.0"
+dependencies = [
+ "nom",
+ "rustyline",
+]
+
+[[package]]
 name = "dirs-next"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -119,14 +127,6 @@ checksum = "46112a93252b123d31a119a8d1a1ac19deac4fac6e0e8b0df58f0d4e5870e63c"
 dependencies = [
  "libc",
  "windows-sys",
-]
-
-[[package]]
-name = "jexpress"
-version = "0.1.0"
-dependencies = [
- "nom",
- "rustyline",
 ]
 
 [[package]]
