@@ -1126,7 +1126,7 @@ fn expression_logic_multiplicative<'v>(input: &str) -> IResult<&str, Expression<
     )(input)
 }
 
-fn literal_type_raw<'v>(input: &str) -> IResult<&str, ValueType> {
+fn literal_type_raw(input: &str) -> IResult<&str, ValueType> {
     alt((
         value(ValueType::Type, tag("Type")),
         value(ValueType::Null, tag("Null")),
