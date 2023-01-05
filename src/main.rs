@@ -155,8 +155,6 @@ impl<'a> std::fmt::Display for Pattern<'a> {
                     let _ = write!(f, ",");
                 }
 
-                dbg!(rest);
-
                 match rest {
                     Rest::Exact => {}
                     Rest::Discard => {
@@ -174,8 +172,6 @@ impl<'a> std::fmt::Display for Pattern<'a> {
                 for ArrayPatternItem::Pattern(item) in items {
                     let _ = write!(f, "{item},");
                 }
-
-                dbg!(rest);
 
                 match rest {
                     Rest::Exact => {}
@@ -1612,7 +1608,7 @@ fn main() -> rustyline::Result<()> {
                         println!("{result}");
                     }
                     Statement::Pattern(pattern) => {
-                        println!("{pattern}");
+                        dbg!(&pattern);
                     }
                 };
             }
