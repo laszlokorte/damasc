@@ -13,19 +13,19 @@ mod env;
 mod expression;
 mod identifier;
 mod matcher;
-mod pattern;
-mod value;
-mod statement;
 mod parser;
+mod pattern;
+mod statement;
+mod value;
 
 use env::Environment;
 use expression::Literal;
 use expression::*;
 use identifier::Identifier;
 use matcher::Matcher;
-use value::Value;
-use statement::Statement;
 use parser::statement;
+use statement::Statement;
+use value::Value;
 
 impl<'s, 'v> Value<'s, 'v> {
     pub(crate) fn to_expression(&self) -> Expression<'s> {
@@ -56,7 +56,6 @@ impl<'s, 'v> Value<'s, 'v> {
         }
     }
 }
-
 
 fn main() -> rustyline::Result<()> {
     let mut env = Environment {
@@ -190,9 +189,9 @@ fn main() -> rustyline::Result<()> {
 
 #[cfg(test)]
 mod test {
-    use std::assert_matches::assert_matches;
-    use crate::parser::{full_expression, try_match};
     use super::*;
+    use crate::parser::{full_expression, try_match};
+    use std::assert_matches::assert_matches;
 
     #[test]
     fn test_expressions() {

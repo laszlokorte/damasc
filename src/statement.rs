@@ -1,6 +1,5 @@
 use crate::{expression::Expression, pattern::Pattern};
 
-
 #[derive(Clone)]
 pub(crate) enum Statement<'a, 'b> {
     Clear,

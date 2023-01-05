@@ -13,8 +13,8 @@ use crate::expression::Literal;
 use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::pattern::*;
-use crate::value::ValueType;
 use crate::statement::Statement;
+use crate::value::ValueType;
 
 fn array_item_expression<'v>(input: &str) -> IResult<&str, ArrayItem<'v>> {
     alt((
