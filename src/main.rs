@@ -47,7 +47,6 @@ impl std::fmt::Display for ValueType {
 }
 
 impl<'s, 'v> Value<'s, 'v> {
-
     pub(crate) fn to_expression(&self) -> Expression<'s> {
         match self {
             Value::Null => Expression::Literal(Literal::Null),
@@ -159,10 +158,10 @@ impl<'a> std::fmt::Display for Pattern<'a> {
                 dbg!(rest);
 
                 match rest {
-                    Rest::Exact => {},
+                    Rest::Exact => {}
                     Rest::Discard => {
                         let _ = write!(f, "...");
-                    },
+                    }
                     Rest::Collect(p) => {
                         let _ = write!(f, "...{p}");
                     }
@@ -175,7 +174,6 @@ impl<'a> std::fmt::Display for Pattern<'a> {
                 for ArrayPatternItem::Pattern(item) in items {
                     let _ = write!(f, "{item},");
                 }
-
 
                 dbg!(rest);
 
@@ -398,7 +396,11 @@ enum PatternFail {
 }
 
 impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
-    fn match_pattern<'x>(&'x mut self, pattern: &'x Pattern<'s>, value: Value<'s, 'v>) -> Result<(), PatternFail> {
+    fn match_pattern<'x>(
+        &'x mut self,
+        pattern: &'x Pattern<'s>,
+        value: Value<'s, 'v>,
+    ) -> Result<(), PatternFail> {
         match &pattern {
             Pattern::Discard => Ok(()),
             Pattern::Identifier(name) => self.match_identifier(name, &value),
@@ -408,21 +410,20 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
                 } else {
                     Err(PatternFail::TypeMismatch)
                 }
-            },
+            }
             Pattern::TypedIdentifier(name, t) => {
                 if t != &value.get_type() {
                     return Err(PatternFail::TypeMismatch);
                 }
                 self.match_identifier(name, &value)
-            },
+            }
             Pattern::Object(pattern, rest) => {
                 let Value::Object(o) = value else {
                     return Err(PatternFail::ObjectMissmatch);
                 };
                 self.match_object(pattern, rest, &o)
             }
-            Pattern::Array(items, rest) => 
-            {
+            Pattern::Array(items, rest) => {
                 let Value::Array(a) = value else {
                     return Err(PatternFail::ArrayMissmatch);
                 };
@@ -431,17 +432,23 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
         }
     }
 
-    fn match_identifier<'x>(&'x mut self, name: &'x Identifier<'x>, value: &Value<'s, 'v>) -> Result<(), PatternFail> {
+    fn match_identifier<'x>(
+        &'x mut self,
+        name: &'x Identifier<'x>,
+        value: &Value<'s, 'v>,
+    ) -> Result<(), PatternFail> {
         let id = Identifier {
             name: Cow::Owned(name.name.to_string()),
         };
 
         match self.bindings.entry(id) {
-            Entry::Occupied(entry) => if value == entry.get() {
-                Ok(())
-            } else {
-                Err(PatternFail::IdentifierConflict)
-            },
+            Entry::Occupied(entry) => {
+                if value == entry.get() {
+                    Ok(())
+                } else {
+                    Err(PatternFail::IdentifierConflict)
+                }
+            }
             Entry::Vacant(entry) => {
                 entry.insert(value.clone());
                 Ok(())
@@ -533,7 +540,6 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
 }
 
 impl<'i, 's, 'v> Environment<'i, 's, 'v> {
-
     fn clear(&mut self) {
         self.bindings.clear();
     }
@@ -1059,14 +1065,14 @@ fn literal_null<'v>(input: &str) -> IResult<&str, Literal<'v>> {
 }
 
 fn literal_string_raw<'v>(input: &str) -> IResult<&str, Cow<'v, str>> {
-    map(delimited(tag("\""), take_until("\""), tag("\"")),|s:&str|Cow::Owned(s.to_string()))(input)
+    map(
+        delimited(tag("\""), take_until("\""), tag("\"")),
+        |s: &str| Cow::Owned(s.to_string()),
+    )(input)
 }
 
 fn literal_string<'v>(input: &str) -> IResult<&str, Literal<'v>> {
-    map(
-        literal_string_raw,
-        Literal::String,
-    )(input)
+    map(literal_string_raw, Literal::String)(input)
 }
 
 fn literal_bool<'v>(input: &str) -> IResult<&str, Literal<'v>> {
@@ -1139,10 +1145,7 @@ fn literal_type_raw(input: &str) -> IResult<&str, ValueType> {
 }
 
 fn literal_type<'v>(input: &str) -> IResult<&str, Literal<'v>> {
-    map(
-        literal_type_raw,
-        Literal::Type,
-    )(input)
+    map(literal_type_raw, Literal::Type)(input)
 }
 
 fn expression_type_predicate<'v>(input: &str) -> IResult<&str, Expression<'v>> {
@@ -1350,7 +1353,10 @@ fn pattern_discard<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
 }
 
 fn pattern_typed_discard<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
-    map(preceded(ws(tag("_ is ")), literal_type_raw), Pattern::TypedDiscard)(input)
+    map(
+        preceded(ws(tag("_ is ")), literal_type_raw),
+        Pattern::TypedDiscard,
+    )(input)
 }
 
 fn pattern_identifier<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
@@ -1358,7 +1364,10 @@ fn pattern_identifier<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
 }
 
 fn pattern_typed_identifier<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
-    map(separated_pair(identifier, tag(" is "), literal_type_raw), |(i,t)| Pattern::TypedIdentifier(i,t))(input)
+    map(
+        separated_pair(identifier, tag(" is "), literal_type_raw),
+        |(i, t)| Pattern::TypedIdentifier(i, t),
+    )(input)
 }
 
 fn object_prop_pattern<'v>(input: &str) -> IResult<&str, ObjectPropertyPattern<'v>> {
@@ -1443,7 +1452,6 @@ fn pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     ))(input)
 }
 
-
 #[derive(Clone)]
 enum Statement<'a, 'b> {
     Clear,
@@ -1458,7 +1466,10 @@ enum Statement<'a, 'b> {
 
 fn assignment<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
     map(
-        preceded(ws(tag("let ")), separated_pair(pattern, ws(tag("=")), full_expression)),
+        preceded(
+            ws(tag("let ")),
+            separated_pair(pattern, ws(tag("=")), full_expression),
+        ),
         |(pat, expr)| Statement::Assign(pat, expr),
     )(input)
 }
@@ -1481,10 +1492,7 @@ fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
             preceded(tag(".format "), full_expression),
             Statement::Format,
         ),
-        map(
-            preceded(tag(".pattern "), full_pattern),
-            Statement::Pattern,
-        ),
+        map(preceded(tag(".pattern "), full_pattern), Statement::Pattern),
         map(
             preceded(tag(".literal "), full_expression),
             Statement::Literal,
@@ -1522,8 +1530,8 @@ fn main() -> rustyline::Result<()> {
                 match stmt {
                     Statement::Clear => {
                         env.clear();
-                    },
-                    
+                    }
+
                     Statement::Inspect(ex) => {
                         dbg!(ex);
                     }
@@ -1559,11 +1567,11 @@ fn main() -> rustyline::Result<()> {
                                 for (id, v) in &matcher.bindings {
                                     println!("let {id} = {v}");
                                 }
-                                env.apply_matcher(&mut matcher); 
-                            },
+                                env.apply_matcher(&mut matcher);
+                            }
                             Err(e) => {
                                 println!("NO: {e:?}")
-                            },
+                            }
                         }
                     }
                     Statement::Match(pattern, ex) => {
@@ -1586,10 +1594,10 @@ fn main() -> rustyline::Result<()> {
                                 for (id, v) in &matcher.bindings {
                                     println!("{id} = {v}");
                                 }
-                            },
+                            }
                             Err(e) => {
                                 println!("NO: {e:?}")
-                            },
+                            }
                         }
                     }
                     Statement::Literal(ex) => {
@@ -1602,10 +1610,10 @@ fn main() -> rustyline::Result<()> {
                         };
 
                         println!("{result}");
-                    },
+                    }
                     Statement::Pattern(pattern) => {
                         println!("{pattern}");
-                    },
+                    }
                 };
             }
             Err(ReadlineError::Interrupted) => {
