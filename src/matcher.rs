@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::expression::PropertyKey;
 use crate::pattern::*;
-use crate::{env::Environment, identifier::Identifier, value::Value};
+use crate::{env::Environment, identifier::Identifier, value::Value, value::ValueObjectMap};
 
 #[derive(Debug)]
 pub(crate) enum PatternFail {
@@ -92,7 +92,7 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
         &'x mut self,
         props: &[ObjectPropertyPattern<'s>],
         rest: &Rest<'s>,
-        value: &BTreeMap<Cow<'s, str>, Cow<'v, Value<'s, 'v>>>,
+        value: &ValueObjectMap<'s,'v>,
     ) -> Result<(), PatternFail> {
         if let Rest::Exact = rest && value.len() != props.len(){
             return Err(PatternFail::ObjectLengthMismatch);

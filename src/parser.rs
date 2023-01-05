@@ -13,6 +13,7 @@ use crate::expression::Literal;
 use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::pattern::*;
+use crate::query::Query;
 use crate::statement::Statement;
 use crate::value::ValueType;
 
@@ -550,16 +551,30 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
     alt((
         value(Statement::Clear, tag(".clear")),
         map(
-            preceded(tag(".inspect "), full_expression),
+            preceded(ws(tag(".inspect ")), full_expression),
             Statement::Inspect,
         ),
         map(
-            preceded(tag(".format "), full_expression),
+            preceded(ws(tag(".format ")), full_expression),
             Statement::Format,
         ),
-        map(preceded(tag(".pattern "), full_pattern), Statement::Pattern),
         map(
-            preceded(tag(".literal "), full_expression),
+            preceded(ws(tag(".insert ")), full_expression),
+            Statement::Insert,
+        ),
+        map(
+            preceded(ws(tag(".pop ")), full_expression),
+            Statement::Pop,
+        ),
+        map(preceded(ws(tag(".pattern ")), full_pattern), Statement::Pattern),
+        map(preceded(ws(tag(".delete ")), full_pattern), Statement::Deletion),
+        map(preceded(ws(tag(".query ")), all_consuming(separated_pair(expression, ws(tag("<<")), pattern))), 
+        |(proj, pred)| Statement::Query(Query {
+            projection: proj,
+            predicate: pred,
+        })),
+        map(
+            preceded(ws(tag(".literal ")), full_expression),
             Statement::Literal,
         ),
         assignment,

@@ -2,6 +2,7 @@
 #![feature(assert_matches)]
 #![feature(map_try_insert)]
 #![feature(let_chains)]
+#![feature(generators)]
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -17,6 +18,8 @@ mod parser;
 mod pattern;
 mod statement;
 mod value;
+mod bag;
+mod query;
 
 use env::Environment;
 use expression::Literal;
@@ -62,6 +65,8 @@ fn main() -> rustyline::Result<()> {
         bindings: BTreeMap::new(),
     };
 
+    let mut bag = crate::bag::ValueBag::new();
+
     let mut rl = Editor::<()>::new()?;
     if rl.load_history("history.txt").is_err() {
         println!("No previous history.");
@@ -84,6 +89,37 @@ fn main() -> rustyline::Result<()> {
                 match stmt {
                     Statement::Clear => {
                         env.clear();
+                    },
+                    Statement::Insert(expression) => {
+                        let Ok(value) = env.eval_expr(&expression) else {
+                            continue;
+                        };
+                        bag.insert(&value);
+                        let count = bag.count(&value);
+                        println!("OK, {count}")
+                    },
+                    Statement::Query(query) => {
+                        for projected in bag.query(&env, &query) {
+                            match projected {
+                                Ok(v) => println!("{v}"),
+                                Err(e) => println!("Error: {e:?}"),
+                            }
+                        }
+                    },
+                    Statement::Deletion(pattern) => {
+                        bag.delete(&env, &pattern);
+                        println!("OK");
+                    },
+                    Statement::Pop(expression) => {
+                        let Ok(value) = env.eval_expr(&expression) else {
+                            continue;
+                        };
+                        if bag.pop(&value) {
+                            let count = bag.count(&value);
+                            println!("OK, {count}")
+                        } else {
+                            println!("NO");
+                        }
                     }
 
                     Statement::Inspect(ex) => {

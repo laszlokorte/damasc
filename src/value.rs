@@ -1,18 +1,22 @@
+
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) enum Value<'s, 'v> {
     Null,
     String(Cow<'s, str>),
     Integer(i64),
     Boolean(bool),
     Array(Vec<Cow<'v, Value<'s, 'v>>>),
-    Object(BTreeMap<Cow<'s, str>, Cow<'v, Value<'s, 'v>>>),
+    Object(ValueObjectMap<'s,'v>),
     Type(ValueType),
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub(crate) type ValueObjectMap<'s,'v> = BTreeMap<Cow<'s, str>, Cow<'v, Value<'s, 'v>>>;
+
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) enum ValueType {
     Null,
     String,
