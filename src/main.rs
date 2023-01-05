@@ -48,7 +48,7 @@ impl std::fmt::Display for ValueType {
 
 impl<'s, 'v> Value<'s, 'v> {
 
-    pub(crate) fn to_expression(&self) -> Expression {
+    pub(crate) fn to_expression(&self) -> Expression<'s> {
         match self {
             Value::Null => Expression::Literal(Literal::Null),
             Value::String(s) => Expression::Literal(Literal::String(s.clone())),
@@ -65,7 +65,7 @@ impl<'s, 'v> Value<'s, 'v> {
                     .map(|(k, v)| {
                         ObjectProperty::Property(Property {
                             key: PropertyKey::Identifier(Identifier {
-                                name: Cow::Borrowed(k),
+                                name: Cow::Owned(k.to_string()),
                             }),
                             value: v.to_expression(),
                         })
@@ -149,13 +149,16 @@ impl<'a> std::fmt::Display for Pattern<'a> {
                             write!(f, ": {value}")
                         }
                     };
+                    let _ = write!(f, ",");
                 }
 
+                dbg!(rest);
+
                 match rest {
-                    Rest::Exact => {}
+                    Rest::Exact => {},
                     Rest::Discard => {
                         let _ = write!(f, "...");
-                    }
+                    },
                     Rest::Collect(p) => {
                         let _ = write!(f, "...{p}");
                     }
@@ -167,17 +170,20 @@ impl<'a> std::fmt::Display for Pattern<'a> {
                 let _ = write!(f, "[");
                 for ArrayPatternItem::Pattern(item) in items {
                     let _ = write!(f, "{item},");
-
-                    match rest {
-                        Rest::Exact => {}
-                        Rest::Discard => {
-                            let _ = write!(f, "...");
-                        }
-                        Rest::Collect(p) => {
-                            let _ = write!(f, "...{p}");
-                        }
-                    };
                 }
+
+
+                dbg!(rest);
+
+                match rest {
+                    Rest::Exact => {}
+                    Rest::Discard => {
+                        let _ = write!(f, "...");
+                    }
+                    Rest::Collect(p) => {
+                        let _ = write!(f, "...{p}");
+                    }
+                };
                 write!(f, "]")
             }
         };
@@ -239,7 +245,7 @@ enum Expression<'s> {
 
 impl std::fmt::Display for Expression<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "?")
+        write!(f, "{self:?}")
     }
 }
 
@@ -1331,7 +1337,7 @@ fn pattern_object<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
                     separated_list0(ws(ws(tag(","))), object_prop_pattern),
                     opt(preceded(ws(tag(",")), pattern_rest)),
                 )),
-                |(props, rest)| Pattern::Object(props, rest.unwrap_or(Rest::Discard)),
+                |(props, rest)| Pattern::Object(props, rest.unwrap_or(Rest::Exact)),
             ),
         )),
         ws(tag("}")),
@@ -1380,6 +1386,8 @@ enum Statement<'a, 'b> {
     Inspect(Expression<'b>),
     Format(Expression<'b>),
     Eval(Expression<'b>),
+    Literal(Expression<'b>),
+    Pattern(Pattern<'b>),
     Assign(Pattern<'a>, Expression<'b>),
 }
 
@@ -1392,6 +1400,7 @@ fn assignment<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
 
 fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
     alt((
+        value(Statement::Clear, tag(".clear")),
         map(
             preceded(tag(".inspect "), full_expression),
             Statement::Inspect,
@@ -1400,9 +1409,16 @@ fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
             preceded(tag(".format "), full_expression),
             Statement::Format,
         ),
+        map(
+            preceded(tag(".pattern "), pattern),
+            Statement::Pattern,
+        ),
+        map(
+            preceded(tag(".literal "), full_expression),
+            Statement::Literal,
+        ),
         assignment,
         map(full_expression, Statement::Eval),
-        value(Statement::Clear, tag(".clear")),
     ))(input)
 }
 
@@ -1434,6 +1450,7 @@ fn main() -> rustyline::Result<()> {
                     Statement::Clear => {
                         env.clear();
                     },
+                    
                     Statement::Inspect(ex) => {
                         dbg!(ex);
                     }
@@ -1475,6 +1492,20 @@ fn main() -> rustyline::Result<()> {
                             println!("NO Match");
                         }
                     }
+                    Statement::Literal(ex) => {
+                        let result = match env.eval_expr(&ex) {
+                            Ok(r) => r.to_expression(),
+                            Err(err) => {
+                                println!("Eval Error, {err:?}");
+                                continue;
+                            }
+                        };
+
+                        println!("{result}");
+                    },
+                    Statement::Pattern(pattern) => {
+                        println!("{pattern}");
+                    },
                 };
             }
             Err(ReadlineError::Interrupted) => {
