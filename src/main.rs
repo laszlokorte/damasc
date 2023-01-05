@@ -121,6 +121,8 @@ impl<'s, 'v> std::fmt::Display for Value<'s, 'v> {
 enum Pattern<'s> {
     Discard,
     Identifier(Identifier<'s>),
+    TypedDiscard(ValueType),
+    TypedIdentifier(Identifier<'s>, ValueType),
     Object(ObjectPattern<'s>, Rest<'s>),
     Array(ArrayPattern<'s>, Rest<'s>),
 }
@@ -129,7 +131,9 @@ impl<'a> std::fmt::Display for Pattern<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let _ = match self {
             Pattern::Discard => write!(f, "_"),
+            Pattern::TypedDiscard(t) => write!(f, "_ is {t}"),
             Pattern::Identifier(id) => write!(f, "{id}"),
+            Pattern::TypedIdentifier(id, t) => write!(f, "{id} is {t}"),
             Pattern::Object(props, rest) => {
                 let _ = write!(f, "{{");
 
@@ -381,29 +385,66 @@ enum EvalError {
     UnknownFunction,
 }
 
+#[derive(Debug)]
+enum PatternFail {
+    IdentifierConflict,
+    ArrayMissmatch,
+    ArrayLengthMismatch,
+    TypeMismatch,
+    ObjectMissmatch,
+    ObjectLengthMismatch,
+    ObjectKeyMismatch,
+    EvalError,
+}
+
 impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
-    fn match_pattern<'x>(&'x mut self, pattern: &'x Pattern<'s>, value: Value<'s, 'v>) -> bool {
-        match (&pattern, &value) {
-            (Pattern::Discard, _) => true,
-            (Pattern::Identifier(name), _) => self.match_identifier(name, &value),
-            (Pattern::Object(pattern, rest), Value::Object(o)) => {
-                self.match_object(pattern, rest, o)
+    fn match_pattern<'x>(&'x mut self, pattern: &'x Pattern<'s>, value: Value<'s, 'v>) -> Result<(), PatternFail> {
+        match &pattern {
+            Pattern::Discard => Ok(()),
+            Pattern::Identifier(name) => self.match_identifier(name, &value),
+            Pattern::TypedDiscard(t) => {
+                if t == &value.get_type() {
+                    Ok(())
+                } else {
+                    Err(PatternFail::TypeMismatch)
+                }
+            },
+            Pattern::TypedIdentifier(name, t) => {
+                if t != &value.get_type() {
+                    return Err(PatternFail::TypeMismatch);
+                }
+                self.match_identifier(name, &value)
+            },
+            Pattern::Object(pattern, rest) => {
+                let Value::Object(o) = value else {
+                    return Err(PatternFail::ObjectMissmatch);
+                };
+                self.match_object(pattern, rest, &o)
             }
-            (Pattern::Array(items, rest), Value::Array(a)) => self.match_array(items, rest, a),
-            _ => false,
+            Pattern::Array(items, rest) => 
+            {
+                let Value::Array(a) = value else {
+                    return Err(PatternFail::ArrayMissmatch);
+                };
+                self.match_array(items, rest, &a)
+            }
         }
     }
 
-    fn match_identifier<'x>(&'x mut self, name: &'x Identifier<'x>, value: &Value<'s, 'v>) -> bool {
+    fn match_identifier<'x>(&'x mut self, name: &'x Identifier<'x>, value: &Value<'s, 'v>) -> Result<(), PatternFail> {
         let id = Identifier {
             name: Cow::Owned(name.name.to_string()),
         };
 
         match self.bindings.entry(id) {
-            Entry::Occupied(entry) => value == entry.get(),
+            Entry::Occupied(entry) => if value == entry.get() {
+                Ok(())
+            } else {
+                Err(PatternFail::IdentifierConflict)
+            },
             Entry::Vacant(entry) => {
                 entry.insert(value.clone());
-                true
+                Ok(())
             }
         }
     }
@@ -413,9 +454,9 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
         props: &[ObjectPropertyPattern<'s>],
         rest: &Rest<'s>,
         value: &BTreeMap<Cow<'s, str>, Cow<'v, Value<'s, 'v>>>,
-    ) -> bool {
+    ) -> Result<(), PatternFail> {
         if let Rest::Exact = rest && value.len() != props.len(){
-            return false;
+            return Err(PatternFail::ObjectLengthMismatch);
         }
 
         let mut keys = value.keys().collect::<BTreeSet<_>>();
@@ -433,36 +474,32 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
                     value,
                 }) => {
                     let Ok(Value::String(k)) = self.env.eval_expr(exp) else {
-                        return false;
+                        return Err(PatternFail::EvalError);
                     };
                     (k.clone(), value.clone())
                 }
             };
 
             if !keys.remove(&k) {
-                return false;
+                return Err(PatternFail::ObjectKeyMismatch);
             }
 
             let Some(actual_value) = value.get(&k) else {
-                return false;
+                return Err(PatternFail::ObjectKeyMismatch);
             };
 
-            if !self.match_pattern(&v, actual_value.as_ref().clone()) {
-                return false;
-            }
+            self.match_pattern(&v, actual_value.as_ref().clone())?
         }
 
-        let rest_matches = if let Rest::Collect(rest_pattern) = rest {
+        if let Rest::Collect(rest_pattern) = rest {
             let remaining: BTreeMap<Cow<str>, Cow<Value>> = keys
                 .iter()
                 .map(|&k| (k.clone(), value.get(k).unwrap().clone()))
                 .collect();
             self.match_pattern(rest_pattern, Value::Object(remaining))
         } else {
-            true
-        };
-
-        rest_matches
+            Ok(())
+        }
     }
 
     fn match_array<'x>(
@@ -470,32 +507,28 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
         items: &[ArrayPatternItem<'s>],
         rest: &Rest<'s>,
         value: &Vec<Cow<'v, Value<'s, 'v>>>,
-    ) -> bool {
+    ) -> Result<(), PatternFail> {
         if let Rest::Exact = rest && value.len() != items.len(){
-            return false;
+            return Err(PatternFail::ArrayLengthMismatch);
         }
 
         if value.len() < items.len() {
-            return false;
+            return Err(PatternFail::ArrayLengthMismatch);
         }
 
         for (item, val) in std::iter::zip(items, value.iter()) {
             let ArrayPatternItem::Pattern(p) = item;
-            if !self.match_pattern(p, val.as_ref().clone()) {
-                return false;
-            }
+            self.match_pattern(p, val.as_ref().clone())?
         }
 
-        let rest_matches = if let Rest::Collect(rest_pattern) = rest {
+        if let Rest::Collect(rest_pattern) = rest {
             self.match_pattern(
                 rest_pattern,
                 Value::Array(value.iter().skip(items.len()).cloned().collect()),
             )
         } else {
-            true
-        };
-
-        rest_matches
+            Ok(())
+        }
     }
 }
 
@@ -967,6 +1000,15 @@ fn object_prop_expression<'v>(input: &str) -> IResult<&str, ObjectProperty<'v>> 
                 })
             },
         ),
+        map(
+            separated_pair(literal_string_raw, ws(tag(":")), expression),
+            |(prop, value)| {
+                ObjectProperty::Property(Property {
+                    key: PropertyKey::Identifier(Identifier { name: prop }),
+                    value,
+                })
+            },
+        ),
         map(preceded(ws(tag("...")), expression), ObjectProperty::Spread),
         map(identifier, ObjectProperty::Single),
     ))(input)
@@ -1016,10 +1058,14 @@ fn literal_null<'v>(input: &str) -> IResult<&str, Literal<'v>> {
     value(Literal::Null, tag("null"))(input)
 }
 
+fn literal_string_raw<'v>(input: &str) -> IResult<&str, Cow<'v, str>> {
+    map(delimited(tag("\""), take_until("\""), tag("\"")),|s:&str|Cow::Owned(s.to_string()))(input)
+}
+
 fn literal_string<'v>(input: &str) -> IResult<&str, Literal<'v>> {
     map(
-        delimited(tag("\""), take_until("\""), tag("\"")),
-        |v: &str| Literal::String(Cow::Owned(v.to_string())),
+        literal_string_raw,
+        Literal::String,
     )(input)
 }
 
@@ -1080,17 +1126,21 @@ fn expression_logic_multiplicative<'v>(input: &str) -> IResult<&str, Expression<
     )(input)
 }
 
+fn literal_type_raw<'v>(input: &str) -> IResult<&str, ValueType> {
+    alt((
+        value(ValueType::Type, tag("Type")),
+        value(ValueType::Null, tag("Null")),
+        value(ValueType::Boolean, tag("Boolean")),
+        value(ValueType::Integer, tag("Integer")),
+        value(ValueType::Array, tag("Array")),
+        value(ValueType::Object, tag("Object")),
+        value(ValueType::String, tag("String")),
+    ))(input)
+}
+
 fn literal_type<'v>(input: &str) -> IResult<&str, Literal<'v>> {
     map(
-        alt((
-            value(ValueType::Type, tag("Type")),
-            value(ValueType::Null, tag("Null")),
-            value(ValueType::Boolean, tag("Boolean")),
-            value(ValueType::Integer, tag("Integer")),
-            value(ValueType::Array, tag("Array")),
-            value(ValueType::Object, tag("Object")),
-            value(ValueType::String, tag("String")),
-        )),
+        literal_type_raw,
         Literal::Type,
     )(input)
 }
@@ -1291,12 +1341,24 @@ fn full_expression<'v>(input: &str) -> IResult<&str, Expression<'v>> {
     all_consuming(expression)(input)
 }
 
+fn full_pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
+    all_consuming(pattern)(input)
+}
+
 fn pattern_discard<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     value(Pattern::Discard, tag("_"))(input)
 }
 
+fn pattern_typed_discard<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
+    map(preceded(ws(tag("_ is ")), literal_type_raw), Pattern::TypedDiscard)(input)
+}
+
 fn pattern_identifier<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     map(identifier, Pattern::Identifier)(input)
+}
+
+fn pattern_typed_identifier<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
+    map(separated_pair(identifier, tag(" is "), literal_type_raw), |(i,t)| Pattern::TypedIdentifier(i,t))(input)
 }
 
 fn object_prop_pattern<'v>(input: &str) -> IResult<&str, ObjectPropertyPattern<'v>> {
@@ -1373,6 +1435,8 @@ fn pattern_array<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
 fn pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     alt((
         pattern_array,
+        pattern_typed_discard,
+        pattern_typed_identifier,
         pattern_discard,
         pattern_identifier,
         pattern_object,
@@ -1389,12 +1453,20 @@ enum Statement<'a, 'b> {
     Literal(Expression<'b>),
     Pattern(Pattern<'b>),
     Assign(Pattern<'a>, Expression<'b>),
+    Match(Pattern<'a>, Expression<'b>),
 }
 
 fn assignment<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
     map(
-        separated_pair(pattern, ws(tag(":=")), full_expression),
+        preceded(ws(tag("let ")), separated_pair(pattern, ws(tag("=")), full_expression)),
         |(pat, expr)| Statement::Assign(pat, expr),
+    )(input)
+}
+
+fn try_match<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
+    map(
+        separated_pair(pattern, ws(tag("=")), full_expression),
+        |(pat, expr)| Statement::Match(pat, expr),
     )(input)
 }
 
@@ -1410,7 +1482,7 @@ fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
             Statement::Format,
         ),
         map(
-            preceded(tag(".pattern "), pattern),
+            preceded(tag(".pattern "), full_pattern),
             Statement::Pattern,
         ),
         map(
@@ -1418,6 +1490,7 @@ fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
             Statement::Literal,
         ),
         assignment,
+        try_match,
         map(full_expression, Statement::Eval),
     ))(input)
 }
@@ -1481,15 +1554,42 @@ fn main() -> rustyline::Result<()> {
                             }
                         };
 
-                        if matcher.match_pattern(&pattern, result.clone()) {
-                            // println!("{pattern} := {result}");
-
-                            for (id, v) in &matcher.bindings {
-                                println!("{id} = {v}");
+                        match matcher.match_pattern(&pattern, result.clone()) {
+                            Ok(_) => {
+                                for (id, v) in &matcher.bindings {
+                                    println!("let {id} = {v}");
+                                }
+                                env.apply_matcher(&mut matcher); 
+                            },
+                            Err(e) => {
+                                println!("NO: {e:?}")
+                            },
+                        }
+                    }
+                    Statement::Match(pattern, ex) => {
+                        let mut matcher = Matcher {
+                            env: &env.clone(),
+                            bindings: BTreeMap::new(),
+                        };
+                        let result = match env.eval_expr(&ex) {
+                            Ok(r) => r,
+                            Err(err) => {
+                                println!("Eval Error, {err:?}");
+                                continue;
                             }
-                            env.apply_matcher(&mut matcher);                        
-                        } else {
-                            println!("NO Match");
+                        };
+
+                        match matcher.match_pattern(&pattern, result.clone()) {
+                            Ok(_) => {
+                                println!("YES:");
+
+                                for (id, v) in &matcher.bindings {
+                                    println!("{id} = {v}");
+                                }
+                            },
+                            Err(e) => {
+                                println!("NO: {e:?}")
+                            },
                         }
                     }
                     Statement::Literal(ex) => {
@@ -1527,6 +1627,8 @@ fn main() -> rustyline::Result<()> {
 
 #[cfg(test)]
 mod test {
+    use std::assert_matches::assert_matches;
+
     use super::*;
 
     fn full_matching(input: &str) -> IResult<&str, (Pattern, Expression)> {
@@ -1582,7 +1684,7 @@ mod test {
             };
             dbg!(case);
 
-            assert!(matcher.match_pattern(&pattern, value));
+            assert_matches!(matcher.match_pattern(&pattern, value), Ok(_));
         }
     }
 
@@ -1608,7 +1710,7 @@ mod test {
             };
             dbg!(case);
 
-            assert!(!matcher.match_pattern(&pattern, value));
+            assert_matches!(matcher.match_pattern(&pattern, value), Err(_));
         }
     }
 }
