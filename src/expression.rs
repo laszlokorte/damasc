@@ -30,7 +30,6 @@ pub(crate) enum ArrayItem<'a> {
     Spread(Expression<'a>),
 }
 
-
 pub(crate) type ObjectExpression<'a> = Vec<ObjectProperty<'a>>;
 
 #[derive(Clone, Debug)]

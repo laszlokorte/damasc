@@ -1,13 +1,11 @@
-use std::{collections::BTreeMap, borrow::Cow};
+use std::{borrow::Cow, collections::BTreeMap};
 
-use crate::{identifier::Identifier, value::Value, expression::*};
-
+use crate::{expression::*, identifier::Identifier, value::Value};
 
 #[derive(Clone)]
 pub(crate) struct Environment<'i, 's, 'v> {
     pub(crate) bindings: BTreeMap<Identifier<'i>, Value<'s, 'v>>,
 }
-
 
 #[derive(Debug)]
 pub(crate) enum EvalError {
@@ -22,13 +20,15 @@ pub(crate) enum EvalError {
     UnknownFunction,
 }
 
-
 impl<'i, 's, 'v> Environment<'i, 's, 'v> {
     pub(crate) fn clear(&mut self) {
         self.bindings.clear();
     }
 
-    pub(crate) fn eval_expr<'x>(&self, expression: &'x Expression<'x>) -> Result<Value<'s, 'v>, EvalError> {
+    pub(crate) fn eval_expr<'x>(
+        &self,
+        expression: &'x Expression<'x>,
+    ) -> Result<Value<'s, 'v>, EvalError> {
         match expression {
             Expression::Array(vec) => self.eval_array(vec),
             Expression::Binary(BinaryExpression {

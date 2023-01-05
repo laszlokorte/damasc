@@ -1,4 +1,3 @@
-
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
@@ -29,7 +28,6 @@ impl std::fmt::Display for ValueType {
         write!(f, "{self:?}")
     }
 }
-
 
 impl<'s, 'v> Value<'s, 'v> {
     pub(crate) fn get_type(&self) -> ValueType {

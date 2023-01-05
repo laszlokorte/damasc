@@ -1,10 +1,10 @@
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet};
 use std::collections::btree_map::Entry;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::expression::PropertyKey;
-use crate::{identifier::Identifier, value::Value, env::Environment};
 use crate::pattern::*;
+use crate::{env::Environment, identifier::Identifier, value::Value};
 
 #[derive(Debug)]
 pub(crate) enum PatternFail {
@@ -24,8 +24,6 @@ pub(crate) struct Matcher<'i, 's, 'v, 'e> {
 }
 
 impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
-
-
     pub(crate) fn apply_to_env<'x>(&mut self, env: &'x mut Environment<'i, 's, 'v>) {
         env.bindings.append(&mut self.bindings);
     }

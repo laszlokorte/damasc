@@ -1,6 +1,6 @@
+use crate::expression::PropertyKey;
 use crate::identifier::Identifier;
 use crate::value::ValueType;
-use crate::expression::PropertyKey;
 
 #[derive(Clone, Debug)]
 pub(crate) enum Pattern<'s> {
