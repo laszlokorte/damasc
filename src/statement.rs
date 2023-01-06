@@ -1,4 +1,4 @@
-use crate::{expression::Expression, pattern::Pattern, query::Query};
+use crate::{expression::Expression, pattern::Pattern, query::{Query, Predicate}};
 
 #[derive(Clone)]
 pub(crate) enum Statement<'a, 'b> {
@@ -13,5 +13,5 @@ pub(crate) enum Statement<'a, 'b> {
     Insert(Expression<'b>),
     Pop(Expression<'b>),
     Query(Query<'a>),
-    Deletion(Pattern<'a>),
+    Deletion(Predicate<'a>),
 }

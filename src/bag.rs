@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashSet};
 use multiset::HashMultiSet;
 use gen_iter::gen_iter;
 
-use crate::{value::Value, pattern::Pattern, matcher::Matcher, env::{Environment, EvalError}, query::Query};
+use crate::{value::Value, matcher::Matcher, env::{Environment, EvalError}, query::{Query, Predicate}};
 
 pub(crate) struct ValueBag<'s,'v> {
     items: HashMultiSet<Value<'s,'v>>
@@ -30,32 +30,56 @@ impl<'s,'v> ValueBag<'s,'v> {
 
     pub(crate) fn query<'e, 'x:'e,'i>(&'x self, env: &'e Environment<'i, 's, 'v>, query: &'e Query<'s>) -> impl Iterator<Item = Result<Value<'s,'v>, EvalError>> + 'e {
         gen_iter!(move {
+            let mut count = 0;
             for item in self.items.iter() {
                 let mut matcher = Matcher {
                     env: &env.clone(),
                     bindings: BTreeMap::new(),
                 };
-                if let Ok(()) = matcher.match_pattern(&query.predicate, item.clone()) {
+                if let Ok(()) = matcher.match_pattern(&query.predicate.pattern, item.clone()) {
                     let mut env = env.clone();
                     matcher.apply_to_env(&mut env);
-                    yield env.eval_expr(&query.projection);
+                    if let Ok(Value::Boolean(true)) = env.eval_expr(&query.predicate.guard) {
+                        yield env.eval_expr(&query.projection);
+                        count+=1;
+                        if let Some(l) = query.predicate.limit && count >= l {
+                            break;
+                        }
+                    }
                 }
             }
         })
     }
 
-    pub(crate) fn delete<'e, 'x:'e,'i>(&'x mut self, env: &'e Environment<'i, 's, 'v>, pattern: &'e Pattern<'s>) {
+    pub(crate) fn delete<'e, 'x:'e,'i>(&'x mut self, env: &'e Environment<'i, 's, 'v>, predicate: &'e Predicate<'s>) {
         let to_delete : HashSet<_> = self.items.distinct_elements().into_iter().filter(|&item| {
             let mut matcher = Matcher {
                 env: &env.clone(),
                 bindings: BTreeMap::new(),
             };
 
-            matches!(matcher.match_pattern(pattern, item.clone()), Ok(()))
+            if !matches!(matcher.match_pattern(&predicate.pattern, item.clone()), Ok(())) {
+                false
+            } else {
+                let mut env = env.clone();
+                matcher.apply_to_env(&mut env);
+                matches!(env.eval_expr(&predicate.guard), Ok(Value::Boolean(true)))
+            }
         }).cloned().collect();
 
-        for d in to_delete {
-            self.items.remove_all(&d);
+        if let Some(mut remaining) = predicate.limit {
+            for d in to_delete {
+                remaining -= self.items.remove_times(&d, remaining);
+
+                if remaining == 0 {
+                    break;
+                }
+            }
+        } else {
+            for d in to_delete {
+                self.items.remove_all(&d);
+            }
         }
+
     }
 }

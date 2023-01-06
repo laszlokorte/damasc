@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_until};
 use nom::character::complete::{alpha1, char, i64, multispace0};
-use nom::combinator::{all_consuming, map, opt, recognize, value};
+use nom::combinator::{all_consuming, map, opt, recognize, value, verify};
 use nom::error::ParseError;
 use nom::multi::{fold_many0, separated_list0};
 use nom::sequence::{delimited, pair, preceded, separated_pair, terminated, tuple};
@@ -13,9 +13,9 @@ use crate::expression::Literal;
 use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::pattern::*;
-use crate::query::Query;
+use crate::query::{Query, Predicate};
 use crate::statement::Statement;
-use crate::value::ValueType;
+use crate::value::{ValueType};
 
 fn array_item_expression<'v>(input: &str) -> IResult<&str, ArrayItem<'v>> {
     alt((
@@ -166,8 +166,12 @@ fn literal_number<'v>(input: &str) -> IResult<&str, Literal<'v>> {
     })(input)
 }
 
+fn no_keyword(input: &str)-> bool {
+    !matches!(input, "where" | "from" | "limit")
+}
+
 fn identifier<'v>(input: &str) -> IResult<&str, Identifier<'v>> {
-    map(alpha1, |name: &str| Identifier {
+    map(verify(alpha1, no_keyword), |name: &str| Identifier {
         name: Cow::Owned(name.to_string()),
     })(input)
 }
@@ -567,11 +571,29 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
             Statement::Pop,
         ),
         map(preceded(ws(tag(".pattern ")), full_pattern), Statement::Pattern),
-        map(preceded(ws(tag(".delete ")), full_pattern), Statement::Deletion),
-        map(preceded(ws(tag(".query ")), all_consuming(separated_pair(expression, ws(tag("<<")), pattern))), 
-        |(proj, pred)| Statement::Query(Query {
+        map(preceded(ws(tag(".delete ")), tuple((
+            preceded(ws(tag("from")), pattern),
+            opt(preceded(ws(tag("where")), expression)),
+            opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
+        ))), |(pattern, guard,limit)| Statement::Deletion(Predicate {
+            pattern,
+            guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
+            limit: limit.map(|l| l as usize),
+        })),
+        map(preceded(ws(tag(".query ")), all_consuming(
+            tuple((
+                expression,
+                preceded(ws(tag("from")), pattern),
+                opt(preceded(ws(tag("where")), expression)),
+                opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
+            )))), 
+        |(proj, pattern, guard, limit)| Statement::Query(Query {
             projection: proj,
-            predicate: pred,
+            predicate: Predicate {
+                pattern,
+                guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
+                limit: limit.map(|l| l as usize),
+            },
         })),
         map(
             preceded(ws(tag(".literal ")), full_expression),

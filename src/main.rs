@@ -106,8 +106,8 @@ fn main() -> rustyline::Result<()> {
                             }
                         }
                     },
-                    Statement::Deletion(pattern) => {
-                        bag.delete(&env, &pattern);
+                    Statement::Deletion(predicate) => {
+                        bag.delete(&env, &predicate);
                         println!("OK");
                     },
                     Statement::Pop(expression) => {
