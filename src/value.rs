@@ -1,4 +1,3 @@
-
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
@@ -9,12 +8,11 @@ pub(crate) enum Value<'s, 'v> {
     Integer(i64),
     Boolean(bool),
     Array(Vec<Cow<'v, Value<'s, 'v>>>),
-    Object(ValueObjectMap<'s,'v>),
+    Object(ValueObjectMap<'s, 'v>),
     Type(ValueType),
 }
 
-pub(crate) type ValueObjectMap<'s,'v> = BTreeMap<Cow<'s, str>, Cow<'v, Value<'s, 'v>>>;
-
+pub(crate) type ValueObjectMap<'s, 'v> = BTreeMap<Cow<'s, str>, Cow<'v, Value<'s, 'v>>>;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) enum ValueType {

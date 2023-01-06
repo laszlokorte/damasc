@@ -1,4 +1,4 @@
-use crate::{pattern::Pattern, expression::Expression};
+use crate::{expression::Expression, pattern::Pattern};
 
 #[derive(Clone)]
 pub(crate) struct Query<'s> {

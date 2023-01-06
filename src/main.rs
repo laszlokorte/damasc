@@ -10,16 +10,16 @@ use std::collections::BTreeMap;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
+mod bag;
 mod env;
 mod expression;
 mod identifier;
 mod matcher;
 mod parser;
 mod pattern;
+mod query;
 mod statement;
 mod value;
-mod bag;
-mod query;
 
 use env::Environment;
 use expression::Literal;
@@ -89,7 +89,7 @@ fn main() -> rustyline::Result<()> {
                 match stmt {
                     Statement::Clear => {
                         env.clear();
-                    },
+                    }
                     Statement::Insert(expression) => {
                         let Ok(value) = env.eval_expr(&expression) else {
                             continue;
@@ -97,7 +97,7 @@ fn main() -> rustyline::Result<()> {
                         bag.insert(&value);
                         let count = bag.count(&value);
                         println!("OK, {count}")
-                    },
+                    }
                     Statement::Query(query) => {
                         for projected in bag.query(&env, &query) {
                             match projected {
@@ -105,11 +105,11 @@ fn main() -> rustyline::Result<()> {
                                 Err(e) => println!("Error: {e:?}"),
                             }
                         }
-                    },
+                    }
                     Statement::Deletion(predicate) => {
                         bag.delete(&env, &predicate);
                         println!("OK");
-                    },
+                    }
                     Statement::Pop(expression) => {
                         let Ok(value) = env.eval_expr(&expression) else {
                             continue;
@@ -250,13 +250,21 @@ mod test {
             assert!(evaled.is_ok(), "Expression A can be evaluated");
             assert!(valued_evaled.is_ok(), "Expression B can be parsed");
 
-            assert_eq!(evaled.unwrap(), valued_evaled.unwrap(), "Expression A and B evaluate to the same value");
+            assert_eq!(
+                evaled.unwrap(),
+                valued_evaled.unwrap(),
+                "Expression A and B evaluate to the same value"
+            );
         }
 
         let Some(e) = tests.into_remainder() else {
             unreachable!("Number of Test Expression lines are multiple of 3");
         };
-        assert_eq!(e.count(), 0, "Last expression pair is followed terminated by ---");
+        assert_eq!(
+            e.count(),
+            0,
+            "Last expression pair is followed terminated by ---"
+        );
     }
 
     #[test]
@@ -280,7 +288,11 @@ mod test {
                 unreachable!("TestExpression can be evaluated");
             };
 
-            assert_matches!(matcher.match_pattern(&pattern, value), Ok(_), "Test Expression Value matches the test pattern");
+            assert_matches!(
+                matcher.match_pattern(&pattern, value),
+                Ok(_),
+                "Test Expression Value matches the test pattern"
+            );
         }
     }
 
@@ -306,7 +318,11 @@ mod test {
             };
             dbg!(case);
 
-            assert_matches!(matcher.match_pattern(&pattern, value), Err(_), "Test Expression Value does not match the test pattern");
+            assert_matches!(
+                matcher.match_pattern(&pattern, value),
+                Err(_),
+                "Test Expression Value does not match the test pattern"
+            );
         }
     }
 }
