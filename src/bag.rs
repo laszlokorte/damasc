@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::{collections::{BTreeMap, HashSet}, borrow::Cow};
 
 use gen_iter::gen_iter;
 use multiset::HashMultiSet;
@@ -11,7 +11,7 @@ use crate::{
 };
 
 pub(crate) struct ValueBag<'s, 'v> {
-    items: HashMultiSet<Value<'s, 'v>>,
+    items: HashMultiSet<Cow<'v, Value<'s, 'v>>>,
 }
 
 impl<'s, 'v> ValueBag<'s, 'v> {
@@ -22,15 +22,15 @@ impl<'s, 'v> ValueBag<'s, 'v> {
     }
 
     pub(crate) fn insert(&mut self, value: &Value<'s, 'v>) {
-        self.items.insert(value.clone());
+        self.items.insert(Cow::Owned(value.clone()));
     }
 
     pub(crate) fn count(&mut self, value: &Value<'s, 'v>) -> usize {
-        self.items.count_of(value)
+        self.items.count_of(&Cow::Borrowed(value))
     }
 
     pub(crate) fn pop(&mut self, value: &Value<'s, 'v>) -> bool {
-        self.items.remove(value)
+        self.items.remove(&Cow::Owned(value.clone()))
     }
 
     pub(crate) fn query<'e, 'x: 'e, 'i>(
@@ -45,7 +45,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
                     env: &env.clone(),
                     bindings: BTreeMap::new(),
                 };
-                if let Ok(()) = matcher.match_pattern(&query.predicate.pattern, item.clone()) {
+                if let Ok(()) = matcher.match_pattern(&query.predicate.pattern, item.as_ref()) {
                     let mut env = env.clone();
                     matcher.apply_to_env(&mut env);
                     if let Ok(Value::Boolean(true)) = env.eval_expr(&query.predicate.guard) {
@@ -76,7 +76,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
                 };
 
                 if !matches!(
-                    matcher.match_pattern(&predicate.pattern, item.clone()),
+                    matcher.match_pattern(&predicate.pattern, item.as_ref()),
                     Ok(())
                 ) {
                     false

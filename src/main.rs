@@ -152,7 +152,7 @@ fn main() -> rustyline::Result<()> {
                             }
                         };
 
-                        match matcher.match_pattern(&pattern, result.clone()) {
+                        match matcher.match_pattern(&pattern, &result) {
                             Ok(_) => {
                                 for (id, v) in &matcher.bindings {
                                     println!("let {id} = {v}");
@@ -177,7 +177,7 @@ fn main() -> rustyline::Result<()> {
                             }
                         };
 
-                        match matcher.match_pattern(&pattern, result.clone()) {
+                        match matcher.match_pattern(&pattern, &result) {
                             Ok(_) => {
                                 println!("YES:");
 
@@ -289,7 +289,7 @@ mod test {
             };
 
             assert_matches!(
-                matcher.match_pattern(&pattern, value),
+                matcher.match_pattern(&pattern, &value),
                 Ok(_),
                 "Test Expression Value matches the test pattern"
             );
@@ -319,7 +319,7 @@ mod test {
             dbg!(case);
 
             assert_matches!(
-                matcher.match_pattern(&pattern, value),
+                matcher.match_pattern(&pattern, &value),
                 Err(_),
                 "Test Expression Value does not match the test pattern"
             );

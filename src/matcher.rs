@@ -31,7 +31,7 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
     pub(crate) fn match_pattern<'x>(
         &'x mut self,
         pattern: &'x Pattern<'s>,
-        value: Value<'s, 'v>,
+        value: &Value<'s, 'v>,
     ) -> Result<(), PatternFail> {
         match &pattern {
             Pattern::Discard => Ok(()),
@@ -127,7 +127,7 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
                 return Err(PatternFail::ObjectKeyMismatch);
             };
 
-            self.match_pattern(&v, actual_value.as_ref().clone())?
+            self.match_pattern(&v, actual_value.as_ref())?
         }
 
         if let Rest::Collect(rest_pattern) = rest {
@@ -135,7 +135,7 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
                 .iter()
                 .map(|&k| (k.clone(), value.get(k).unwrap().clone()))
                 .collect();
-            self.match_pattern(rest_pattern, Value::Object(remaining))
+            self.match_pattern(rest_pattern, &Value::Object(remaining))
         } else {
             Ok(())
         }
@@ -156,13 +156,13 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
         }
 
         for (ArrayPatternItem::Pattern(p), val) in std::iter::zip(items, value.iter()) {
-            self.match_pattern(p, val.as_ref().clone())?
+            self.match_pattern(p, val.as_ref())?
         }
 
         if let Rest::Collect(rest_pattern) = rest {
             self.match_pattern(
                 rest_pattern,
-                Value::Array(value.iter().skip(items.len()).cloned().collect()),
+                &Value::Array(value.iter().skip(items.len()).cloned().collect()),
             )
         } else {
             Ok(())
