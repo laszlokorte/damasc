@@ -17,7 +17,7 @@ The only operations that are allowed are:
 * strict (in)equality (`==`, `!=`), eg `[1,2,3] == [1,2,3]` evaluates to `true`, but `5 == "foo"` evaluates to `false`
 * intenger-indexed access on arrays and strings (negativ index points from the end), eg `["a","b","c"][0] == ["a","b","c"][-2]`
 * string-indexed access on objects, eg `"ciao"[0] == "ciao"[-4]`
-* string concatination via template strings, eg ``x + y = ${x+y}`` evaluates to `"3+7 = 10"` if `x` equals `3` and `y` equals `7`
+* string concatination via template strings, eg `` `x + y = ${x+y}` `` evaluates to `"3+7 = 10"` if `x` equals `3` and `y` equals `7`
 * literal array construction: `[23,"foo",true]`
 * literal object construction: `{foo: 42, ["bar"]: 23}`
 * literal object construction with computed key: `{foo: 42, [["bar","baz"][1]]: 23} == {baz: 23, foo: 42, }`
