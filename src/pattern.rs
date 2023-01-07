@@ -5,6 +5,7 @@ use crate::value::ValueType;
 #[derive(Clone, Debug)]
 pub(crate) enum Pattern<'s> {
     Discard,
+    Capture(Identifier<'s>, Box<Pattern<'s>>),
     Identifier(Identifier<'s>),
     TypedDiscard(ValueType),
     TypedIdentifier(Identifier<'s>, ValueType),
@@ -16,6 +17,7 @@ impl<'a> std::fmt::Display for Pattern<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let _ = match self {
             Pattern::Discard => write!(f, "_"),
+            Pattern::Capture(id, pat) => write!(f, "{pat} @ {id}"),
             Pattern::TypedDiscard(t) => write!(f, "_ is {t}"),
             Pattern::Identifier(id) => write!(f, "{id}"),
             Pattern::TypedIdentifier(id, t) => write!(f, "{id} is {t}"),

@@ -36,7 +36,6 @@ name = "damasc"
 version = "0.1.0"
 dependencies = [
  "gen-iter",
- "multiset",
  "nom",
  "rustyline",
 ]
@@ -169,12 +168,6 @@ name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
-
-[[package]]
-name = "multiset"
-version = "0.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce8738c9ddd350996cb8b8b718192851df960803764bcdaa3afb44a63b1ddb5c"
 
 [[package]]
 name = "nibble_vec"

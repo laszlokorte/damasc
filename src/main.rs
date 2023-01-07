@@ -6,6 +6,8 @@
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::fs::File;
+use std::io::{self, BufRead, LineWriter};
 
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
@@ -26,7 +28,7 @@ use expression::Literal;
 use expression::*;
 use identifier::Identifier;
 use matcher::Matcher;
-use parser::statement;
+use parser::{statement, full_expression};
 use statement::Statement;
 use value::Value;
 
@@ -90,13 +92,47 @@ fn main() -> rustyline::Result<()> {
                     Statement::Clear => {
                         env.clear();
                     }
+                    Statement::Import(filename) => {
+                        let Ok(file) = File::open(filename.as_ref()) else {
+                            println!("No file: {filename}");
+                            continue;
+                        };
+                        let lines = io::BufReader::new(file).lines();
+
+                        for l in lines {
+                            let Ok(line) = l else {
+                                println!("Read error: {line}");
+                                continue;
+                            };
+                            let Ok((_, expr)) = full_expression(&line) else {
+                                println!("Parse error: {line}");
+                                continue;
+                            };
+                            let Ok(value) = env.eval_expr(&expr) else {
+                                println!("Eval error: {line}");
+                                continue;
+                            };
+                            bag.insert(&value);
+                        }
+                    }
+                    Statement::Export(filename) => {
+                        use std::io::Write;
+
+                        let Ok(file) = File::create(filename.as_ref()) else {
+                            println!("File {filename} could not be created");
+                            continue;
+                        };
+                        let mut file = LineWriter::new(file);
+                        for v in bag.iter() {
+                            let _ = writeln!(file, "{v}");
+                        }
+                    }
                     Statement::Insert(expression) => {
                         let Ok(value) = env.eval_expr(&expression) else {
                             continue;
                         };
                         bag.insert(&value);
-                        let count = bag.count(&value);
-                        println!("OK, {count}")
+                        println!("OK")
                     }
                     Statement::Query(query) => {
                         for projected in bag.query(&env, &query) {
@@ -115,8 +151,7 @@ fn main() -> rustyline::Result<()> {
                             continue;
                         };
                         if bag.pop(&value) {
-                            let count = bag.count(&value);
-                            println!("OK, {count}")
+                            println!("OK")
                         } else {
                             println!("NO");
                         }

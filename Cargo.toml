@@ -7,6 +7,5 @@ edition = "2021"
 
 [dependencies]
 gen-iter = "0.3.0"
-multiset = "0.0.5"
 nom = "7.1.2"
 rustyline = "10.0.0"

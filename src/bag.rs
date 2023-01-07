@@ -1,7 +1,6 @@
-use std::{collections::{BTreeMap, HashSet}, borrow::Cow};
+use std::{collections::{BTreeMap}, borrow::Cow};
 
 use gen_iter::gen_iter;
-use multiset::HashMultiSet;
 
 use crate::{
     env::{Environment, EvalError},
@@ -11,26 +10,27 @@ use crate::{
 };
 
 pub(crate) struct ValueBag<'s, 'v> {
-    items: HashMultiSet<Cow<'v, Value<'s, 'v>>>,
+    items: Vec<Cow<'v, Value<'s, 'v>>>,
 }
 
 impl<'s, 'v> ValueBag<'s, 'v> {
     pub(crate) fn new() -> Self {
         Self {
-            items: HashMultiSet::new(),
+            items: Vec::new(),
         }
     }
 
     pub(crate) fn insert(&mut self, value: &Value<'s, 'v>) {
-        self.items.insert(Cow::Owned(value.clone()));
-    }
-
-    pub(crate) fn count(&mut self, value: &Value<'s, 'v>) -> usize {
-        self.items.count_of(&Cow::Borrowed(value))
+        self.items.push(Cow::Owned(value.clone()));
     }
 
     pub(crate) fn pop(&mut self, value: &Value<'s, 'v>) -> bool {
-        self.items.remove(&Cow::Owned(value.clone()))
+        if let Some(pos) = self.items.iter().position(|i| i.as_ref() == value) {
+            self.items.swap_remove(pos); 
+            true
+        } else {
+            false
+        }
     }
 
     pub(crate) fn query<'e, 'x: 'e, 'i>(
@@ -65,42 +65,39 @@ impl<'s, 'v> ValueBag<'s, 'v> {
         env: &'e Environment<'i, 's, 'v>,
         predicate: &'e Predicate<'s>,
     ) {
-        let to_delete: HashSet<_> = self
-            .items
-            .distinct_elements()
-            .into_iter()
-            .filter(|&item| {
-                let mut matcher = Matcher {
-                    env: &env.clone(),
-                    bindings: BTreeMap::new(),
-                };
+        let mut counter = 0;
+        let mut matcher = Matcher {
+            env: &env.clone(),
+            bindings: BTreeMap::new(),
+        };
 
-                if !matches!(
-                    matcher.match_pattern(&predicate.pattern, item.as_ref()),
-                    Ok(())
-                ) {
+        self.items.retain(|item| {
+            if let Some(limit) = predicate.limit && limit <= counter {
+                return true;
+            }
+
+            matcher.clear();
+
+            if !matches!(
+                matcher.match_pattern(&predicate.pattern, item.as_ref()),
+                Ok(())
+            ) {
+                true
+            } else {
+                let mut env = env.clone();
+                matcher.apply_to_env(&mut env);
+                let should_delete = matches!(env.eval_expr(&predicate.guard), Ok(Value::Boolean(true)));
+                if should_delete {
+                    counter += 1;
                     false
                 } else {
-                    let mut env = env.clone();
-                    matcher.apply_to_env(&mut env);
-                    matches!(env.eval_expr(&predicate.guard), Ok(Value::Boolean(true)))
-                }
-            })
-            .cloned()
-            .collect();
-
-        if let Some(mut remaining) = predicate.limit {
-            for d in to_delete {
-                remaining -= self.items.remove_times(&d, remaining);
-
-                if remaining == 0 {
-                    break;
+                    true
                 }
             }
-        } else {
-            for d in to_delete {
-                self.items.remove_all(&d);
-            }
-        }
+        });
+    }
+
+    pub(crate) fn iter<'x>(&'x self) -> std::slice::Iter<'x, std::borrow::Cow<'v, Value<'s, 'v>>> {
+        self.items.iter()
     }
 }

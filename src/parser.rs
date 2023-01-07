@@ -167,7 +167,7 @@ fn literal_number<'v>(input: &str) -> IResult<&str, Literal<'v>> {
 }
 
 fn no_keyword(input: &str) -> bool {
-    !matches!(input, "where" | "from" | "limit")
+    !matches!(input, "where" | "into" | "limit")
 }
 
 fn identifier<'v>(input: &str) -> IResult<&str, Identifier<'v>> {
@@ -554,6 +554,8 @@ pub(crate) fn try_match<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>>
 pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
     alt((
         value(Statement::Clear, tag(".clear")),
+        map(preceded(ws(tag(".load ")), alpha1), |f| Statement::Import(Cow::Owned(f.into()))),
+        map(preceded(ws(tag(".dump ")), alpha1), |f| Statement::Export(Cow::Owned(f.into()))),
         map(
             preceded(ws(tag(".inspect ")), full_expression),
             Statement::Inspect,
@@ -575,7 +577,7 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
             preceded(
                 ws(tag(".delete ")),
                 tuple((
-                    preceded(ws(tag("from")), pattern),
+                    ws(pattern),
                     opt(preceded(ws(tag("where")), expression)),
                     opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
                 )),
@@ -592,17 +594,17 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
             preceded(
                 ws(tag(".query ")),
                 all_consuming(tuple((
-                    expression,
-                    preceded(ws(tag("from")), pattern),
+                    pattern,
+                    opt(preceded(ws(tag("into")), expression)),
                     opt(preceded(ws(tag("where")), expression)),
                     opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
                 ))),
             ),
-            |(proj, pattern, guard, limit)| {
+            |(pattern, proj, guard, limit)| {
                 Statement::Query(Query {
-                    projection: proj,
+                    projection: proj.unwrap_or(Expression::Identifier(Identifier{name: Cow::Borrowed("$")})),
                     predicate: Predicate {
-                        pattern,
+                        pattern: Pattern::Capture(Identifier{name: Cow::Borrowed("$")}, Box::new(pattern)),
                         guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
                         limit: limit.map(|l| l as usize),
                     },

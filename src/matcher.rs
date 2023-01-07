@@ -35,7 +35,9 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
     ) -> Result<(), PatternFail> {
         match &pattern {
             Pattern::Discard => Ok(()),
-            Pattern::Identifier(name) => self.match_identifier(name, &value),
+            Pattern::Capture(name, pat) => 
+                self.match_pattern(pat, value).and_then(|_| self.match_identifier(name, value)),
+            Pattern::Identifier(name) => self.match_identifier(name, value),
             Pattern::TypedDiscard(t) => {
                 if t == &value.get_type() {
                     Ok(())
@@ -47,19 +49,19 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
                 if t != &value.get_type() {
                     return Err(PatternFail::TypeMismatch);
                 }
-                self.match_identifier(name, &value)
+                self.match_identifier(name, value)
             }
             Pattern::Object(pattern, rest) => {
                 let Value::Object(o) = value else {
                     return Err(PatternFail::ObjectMissmatch);
                 };
-                self.match_object(pattern, rest, &o)
+                self.match_object(pattern, rest, o)
             }
             Pattern::Array(items, rest) => {
                 let Value::Array(a) = value else {
                     return Err(PatternFail::ArrayMissmatch);
                 };
-                self.match_array(items, rest, &a)
+                self.match_array(items, rest, a)
             }
         }
     }
@@ -167,5 +169,9 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
         } else {
             Ok(())
         }
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.bindings.clear();
     }
 }

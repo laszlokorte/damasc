@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::{
     expression::Expression,
     pattern::Pattern,
@@ -18,4 +20,6 @@ pub(crate) enum Statement<'a, 'b> {
     Pop(Expression<'b>),
     Query(Query<'a>),
     Deletion(Predicate<'a>),
+    Import(Cow<'b, str>),
+    Export(Cow<'b, str>),
 }
