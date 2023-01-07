@@ -74,6 +74,7 @@ fn main() -> rustyline::Result<()> {
     if rl.load_history("history.txt").is_err() {
         println!("No previous history.");
     }
+    println!("press CTRL-D to exit.");
     loop {
         let readline = rl.readline(">> ");
         match readline {
@@ -180,6 +181,7 @@ fn main() -> rustyline::Result<()> {
                     Statement::Format(ex) => {
                         println!("{ex:?}");
                     }
+
                     Statement::Eval(ex) => {
                         let result = match env.eval_expr(&ex) {
                             Ok(r) => r,
@@ -259,11 +261,9 @@ fn main() -> rustyline::Result<()> {
                 };
             }
             Err(ReadlineError::Interrupted) => {
-                println!("CTRL-C");
-                break;
+                continue;
             }
             Err(ReadlineError::Eof) => {
-                println!("CTRL-D");
                 break;
             }
             Err(err) => {

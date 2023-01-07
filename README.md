@@ -174,7 +174,7 @@ OK
 You can query the dataset:
 
 ```
-> .query _
+>> .query _
 42
 23
 23
@@ -186,7 +186,7 @@ You can query the dataset:
 The number of results can be limited:
 
 ```
-> .query _ limit 2
+>> .query _ limit 2
 42
 23
 ```
@@ -194,7 +194,7 @@ The number of results can be limited:
 The number of results can be limited:
 
 ```
-> .query x into x*x limit 2
+>> .query x into x*x limit 2
 42
 23
 ```
@@ -202,7 +202,7 @@ The number of results can be limited:
 The queried values can be captured in a variable and transformed:
 
 ```
-> .query x into x*x limit 2
+>> .query x into x*x limit 2
 529
 1764
 ```
@@ -210,27 +210,27 @@ The queried values can be captured in a variable and transformed:
 A pattern can be used to query only matching values:
 
 ```
-> .query [x,y,z]
+>> .query [x,y,z]
 [1,2,3]
 ```
 
 The identifiers bound by the pattern can be transformed:
 ```
-> .query [x,y,z] into x+y*z
+>> .query [x,y,z] into x+y*z
 7
 ```
 
 The results can be filtered by an additional predicate:
 
 ```
-> .query [x,y,z] into x+y*z where z > x
+>> .query [x,y,z] into x+y*z where z > x
 7
 ```
 
 Pattern, transformation, filter and limit at once:
 
 ```
-> .query [x,y,z] into x+y*z where z > x limit 1
+>> .query [x,y,z] into x+y*z where z > x limit 1
 7
 ```
 
@@ -238,10 +238,60 @@ You can use multiple patterns (for now only two) to join multiple values:
 
 ```
 # queries all pairs of integers a and b and transforms them into a triplet of themself and their product.
-> .query a is Integer;b is Integer into [a, b, a*b] where a > b
+>> .query a is Integer;b is Integer into [a, b, a*b] where a > b
 [42, 23, 966, ]
 [42, 23, 966, ]
 [108, 42, 4536, ]
 [108, 23, 2484, ]
 [108, 23, 2484, ]
+```
+
+You can export all inserted values into a text file (one value per line):
+(currently filenames must be `[a-z_]+`)
+
+```
+>> .dump my_values
+OK
+```
+
+And later read them back in:
+
+```
+>> .load my_values
+OK
+```
+
+You can also delete all values currently in the memory database:
+
+```
+>> .delete _
+OK
+```
+
+Or only all those matching a given pattern. For example all objects have x and y properties and whose x property equals 23:
+
+```
+>> .delete {x:23, y}
+OK
+```
+
+Or deleting all Strings:
+
+```
+>> .delete _ is String
+OK
+```
+
+As for the queries you can append an additional predicate to select a subset of values to be deleted. For example deleting all objects whose x property is greater than the y property:
+
+```
+>> .delete {x,y} where x>y
+OK
+```
+
+You can also limit the amount of objects to delete. The following command deletes only 10 strings:
+
+```
+>> .delete _ is String limit 10
+OK
 ```
