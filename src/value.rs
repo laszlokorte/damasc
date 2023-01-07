@@ -44,7 +44,7 @@ impl<'s, 'v> Value<'s, 'v> {
         }
     }
 
-    pub(crate) fn convert(&self, specified_type: ValueType) -> Option<Value<'s,'v>> {
+    pub(crate) fn convert(&self, specified_type: ValueType) -> Option<Value<'s, 'v>> {
         if self.get_type() == specified_type {
             return Some(self.clone());
         }
@@ -61,15 +61,19 @@ impl<'s, 'v> Value<'s, 'v> {
             (Value::Object(o), ValueType::Boolean) => Value::Boolean(!o.is_empty()),
             (Value::Array(a), ValueType::Boolean) => Value::Boolean(!a.is_empty()),
             (Value::String(s), ValueType::Boolean) => Value::Boolean(!s.is_empty()),
-            (Value::String(s), ValueType::Array) => Value::Array(s.chars().map(|c| Cow::Owned(Value::String(Cow::Owned(c.to_string())))).collect()),
+            (Value::String(s), ValueType::Array) => Value::Array(
+                s.chars()
+                    .map(|c| Cow::Owned(Value::String(Cow::Owned(c.to_string()))))
+                    .collect(),
+            ),
             (Value::String(_), ValueType::Object) => todo!(),
             (Value::Integer(i), ValueType::String) => Value::String(Cow::Owned(i.to_string())),
             (Value::Integer(i), ValueType::Boolean) => Value::Boolean(i != &0),
             (Value::Boolean(b), ValueType::String) => Value::String(Cow::Owned(b.to_string())),
-            (Value::Boolean(b), ValueType::Integer) => Value::Integer(if *b {1} else{0}),
+            (Value::Boolean(b), ValueType::Integer) => Value::Integer(if *b { 1 } else { 0 }),
             (Value::Array(a), ValueType::Integer) => Value::Integer(a.len() as i64),
             (Value::Object(o), ValueType::Integer) => Value::Integer(o.len() as i64),
-            _ => return None
+            _ => return None,
         })
     }
 }

@@ -14,7 +14,7 @@ pub(crate) enum Expression<'s> {
     Object(ObjectExpression<'s>),
     Unary(UnaryExpression<'s>),
     Call(CallExpression<'s>),
-    Template(StringTemplate<'s>)
+    Template(StringTemplate<'s>),
 }
 
 impl std::fmt::Display for Expression<'_> {

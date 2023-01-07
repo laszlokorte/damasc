@@ -1,6 +1,11 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
-use crate::{expression::*, identifier::Identifier, literal::Literal, value::{Value, ValueType}};
+use crate::{
+    expression::*,
+    identifier::Identifier,
+    literal::Literal,
+    value::{Value, ValueType},
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Environment<'i, 's, 'v> {
@@ -219,11 +224,11 @@ impl<'i, 's, 'v> Environment<'i, 's, 'v> {
                 let Value::Type(specified_type) = right else {
                     return Err(EvalError::KindError);
                 };
-                
+
                 let Some(v) = left.convert(*specified_type) else {
                     return Err(EvalError::TypeError);
                 };
-                
+
                 Ok(v)
             }
         }
@@ -430,17 +435,28 @@ impl<'i, 's, 'v> Environment<'i, 's, 'v> {
         })
     }
 
-    fn eval_template<'x>(&self, template: &'x StringTemplate<'x>) -> Result<Value<'s, 'v>, EvalError> {
-        let joined = template.parts.iter().flat_map(move |part| {
-            let prefix = Ok(Cow::Owned(part.fixed_start.as_ref().into()));
+    fn eval_template<'x>(
+        &self,
+        template: &'x StringTemplate<'x>,
+    ) -> Result<Value<'s, 'v>, EvalError> {
+        let joined = template
+            .parts
+            .iter()
+            .flat_map(move |part| {
+                let prefix = Ok(Cow::Owned(part.fixed_start.as_ref().into()));
 
-            match self.eval_expr(&part.dynamic_end).map(|v| v.convert(ValueType::String)) {
-                Ok(Some(Value::String(end))) => [prefix, Ok(end)],
-                Ok(_) => [prefix, Err(EvalError::TypeError)],
-                Err(e) => [prefix, Err(e)],
-            }
-        }).chain(Some(Ok(Cow::Owned(template.suffix.as_ref().into())))).collect::<Result<Vec<Cow<'s, str>>,_>>()?;
+                match self
+                    .eval_expr(&part.dynamic_end)
+                    .map(|v| v.convert(ValueType::String))
+                {
+                    Ok(Some(Value::String(end))) => [prefix, Ok(end)],
+                    Ok(_) => [prefix, Err(EvalError::TypeError)],
+                    Err(e) => [prefix, Err(e)],
+                }
+            })
+            .chain(Some(Ok(Cow::Owned(template.suffix.as_ref().into()))))
+            .collect::<Result<Vec<Cow<'s, str>>, _>>()?;
 
-        return Ok(Value::String(Cow::Owned(joined.join(""))))
+        return Ok(Value::String(Cow::Owned(joined.join(""))));
     }
 }

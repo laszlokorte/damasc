@@ -1,11 +1,11 @@
 use std::borrow::Cow;
 
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take_until, is_not};
+use nom::bytes::complete::{is_not, tag, take_until};
 use nom::character::complete::{alpha1, char, i64, multispace0};
 use nom::combinator::{all_consuming, map, opt, recognize, value, verify};
 use nom::error::ParseError;
-use nom::multi::{fold_many0, many1, separated_list0, separated_list1, many0};
+use nom::multi::{fold_many0, many0, many1, separated_list0, separated_list1};
 use nom::sequence::{delimited, pair, preceded, separated_pair, terminated, tuple};
 use nom::IResult;
 
@@ -145,17 +145,30 @@ fn literal_null<'v>(input: &str) -> IResult<&str, Literal<'v>> {
 
 fn string_template_part<'v>(input: &str) -> IResult<&str, StringTemplatePart<'v>> {
     map(
-        tuple((recognize(take_until("${")), delimited(tag("${"), expression, tag("}")))),
-        |(fixed_start,dynamic_end)| {
-            StringTemplatePart { fixed_start: Cow::Owned(fixed_start.into()), dynamic_end: Box::new(dynamic_end) }
-        }
+        tuple((
+            recognize(take_until("${")),
+            delimited(tag("${"), expression, tag("}")),
+        )),
+        |(fixed_start, dynamic_end)| StringTemplatePart {
+            fixed_start: Cow::Owned(fixed_start.into()),
+            dynamic_end: Box::new(dynamic_end),
+        },
     )(input)
 }
 
 fn expression_string_template<'v>(input: &str) -> IResult<&str, Expression<'v>> {
     map(
-        delimited(tag("`"), tuple((many0(string_template_part), recognize(many0(is_not("`"))))), tag("`")),
-        |(parts, s)| Expression::Template(StringTemplate { parts, suffix: Cow::Owned(s.to_string()) }),
+        delimited(
+            tag("`"),
+            tuple((many0(string_template_part), recognize(many0(is_not("`"))))),
+            tag("`"),
+        ),
+        |(parts, s)| {
+            Expression::Template(StringTemplate {
+                parts,
+                suffix: Cow::Owned(s.to_string()),
+            })
+        },
     )(input)
 }
 
@@ -271,9 +284,7 @@ fn expression_type_additive<'v>(input: &str) -> IResult<&str, Expression<'v>> {
 
     fold_many0(
         pair(
-            ws(alt((
-                value(BinaryOperator::Cast, tag("as")),
-            ))),
+            ws(alt((value(BinaryOperator::Cast, tag("as")),))),
             expression_numeric_predicative,
         ),
         move || init.clone(),
@@ -684,19 +695,23 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
             |(outer, (patterns, proj, guard, limit))| {
                 Statement::Query(Query {
                     outer,
-                    projection: proj.unwrap_or_else(||if patterns.len() == 1 {
-                        Expression::Identifier(Identifier {
-                            name: Cow::Borrowed("$0"),
-                        })
-                    } else {Expression::Array(
-                        (0..patterns.len())
-                            .map(|i| {
-                                ArrayItem::Single(Expression::Identifier(Identifier {
-                                    name: Cow::Owned(format!("${i}")),
-                                }))
+                    projection: proj.unwrap_or_else(|| {
+                        if patterns.len() == 1 {
+                            Expression::Identifier(Identifier {
+                                name: Cow::Borrowed("$0"),
                             })
-                            .collect(),
-                    )}),
+                        } else {
+                            Expression::Array(
+                                (0..patterns.len())
+                                    .map(|i| {
+                                        ArrayItem::Single(Expression::Identifier(Identifier {
+                                            name: Cow::Owned(format!("${i}")),
+                                        }))
+                                    })
+                                    .collect(),
+                            )
+                        }
+                    }),
                     predicate: CrossPredicate {
                         patterns: patterns
                             .into_iter()
