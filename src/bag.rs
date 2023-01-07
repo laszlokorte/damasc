@@ -7,8 +7,9 @@ const MAX_JOIN_SIZE: usize = 6;
 use crate::{
     env::{Environment, EvalError},
     matcher::Matcher,
+    pattern::Pattern,
     query::{CrossQuery, Predicate, Query},
-    value::Value, pattern::Pattern,
+    value::Value,
 };
 
 pub(crate) struct ValueBag<'s, 'v> {
@@ -91,16 +92,14 @@ impl<'s, 'v> ValueBag<'s, 'v> {
         })
     }
 
-
     pub(crate) fn cross_query_helper<'e, 'x: 'e, 'i>(
         &'x self,
         outer: bool,
         depth: usize,
-        skip: [usize;MAX_JOIN_SIZE],
+        skip: [usize; MAX_JOIN_SIZE],
         matcher: Matcher<'i, 's, 'v, 'e>,
         patterns: &'e [Pattern<'s>],
-    ) 
-    -> Box<dyn Iterator<Item = Matcher<'i, 's, 'v, 'e>> + 'e> {
+    ) -> Box<dyn Iterator<Item = Matcher<'i, 's, 'v, 'e>> + 'e> {
         let Some(pattern) = patterns.get(0) else {
             return Box::new(Some(matcher.clone()).into_iter())
         };

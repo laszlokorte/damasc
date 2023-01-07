@@ -644,20 +644,28 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
             |(outer, (patterns, proj, guard, limit))| {
                 Statement::CrossQuery(CrossQuery {
                     outer,
-                    projection: proj.unwrap_or(Expression::Array((0..patterns.len()).map(|i| {
-                        ArrayItem::Single(Expression::Identifier(Identifier {
-                            name: Cow::Owned(format!("${i}")),
-                        }))
-                    }).collect())),
-                    predicate: CrossPredicate {
-                        patterns: patterns.into_iter().enumerate().map(|(i,p)| {
-                            Pattern::Capture(
-                                Identifier {
+                    projection: proj.unwrap_or(Expression::Array(
+                        (0..patterns.len())
+                            .map(|i| {
+                                ArrayItem::Single(Expression::Identifier(Identifier {
                                     name: Cow::Owned(format!("${i}")),
-                                },
-                                Box::new(p),
-                            )
-                        }).collect(),
+                                }))
+                            })
+                            .collect(),
+                    )),
+                    predicate: CrossPredicate {
+                        patterns: patterns
+                            .into_iter()
+                            .enumerate()
+                            .map(|(i, p)| {
+                                Pattern::Capture(
+                                    Identifier {
+                                        name: Cow::Owned(format!("${i}")),
+                                    },
+                                    Box::new(p),
+                                )
+                            })
+                            .collect(),
                         guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
                         limit: limit.map(|l| l as usize),
                     },
@@ -703,11 +711,9 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
                         name: Cow::Borrowed("$"),
                     }),
                     predicate: Predicate {
-                        pattern: Pattern::Identifier(
-                            Identifier {
-                                name: Cow::Borrowed("$"),
-                            },
-                        ),
+                        pattern: Pattern::Identifier(Identifier {
+                            name: Cow::Borrowed("$"),
+                        }),
                         guard: Expression::Literal(Literal::Boolean(true)),
                         limit: limit.map(|l| l as usize),
                     },
