@@ -2,11 +2,13 @@ use std::{borrow::Cow, collections::BTreeMap};
 
 use gen_iter::gen_iter;
 
+const MAX_JOIN_SIZE: usize = 6;
+
 use crate::{
     env::{Environment, EvalError},
     matcher::Matcher,
     query::{CrossQuery, Predicate, Query},
-    value::Value,
+    value::Value, pattern::Pattern,
 };
 
 pub(crate) struct ValueBag<'s, 'v> {
@@ -64,35 +66,64 @@ impl<'s, 'v> ValueBag<'s, 'v> {
         query: &'e CrossQuery<'s>,
     ) -> impl Iterator<Item = Result<Value<'s, 'v>, EvalError>> + 'e {
         gen_iter!(move {
+            let matcher = Matcher {
+                env,
+                bindings: BTreeMap::new(),
+            };
             let mut count = 0;
-            'outer: for (idx_a, item_a) in self.items.iter().enumerate() {
-                let mut matcher = Matcher {
-                    env,
-                    bindings: BTreeMap::new(),
-                };
-                if let Ok(()) = matcher.match_pattern(&query.predicate.patterns[0], item_a.as_ref()) {
-                    for (idx_b, item_b) in self.items.iter().enumerate() {
-                        if !query.outer && idx_a == idx_b {
-                            continue;
-                        }
 
-                        let mut matcher = matcher.clone();
+            if query.predicate.patterns.len() > MAX_JOIN_SIZE {
+                yield Err(EvalError::Overflow);
+                return;
+            }
 
-                        if let Ok(()) = matcher.match_pattern(&query.predicate.patterns[1], item_b.as_ref()) {
-                            let mut env = env.clone();
-                            matcher.apply_to_env(&mut env);
-                            if let Ok(Value::Boolean(true)) = env.eval_expr(&query.predicate.guard) {
-                                yield env.eval_expr(&query.projection);
-                                count+=1;
-                                if let Some(l) = query.predicate.limit && count >= l {
-                                    break 'outer;
-                                }
-                            }
-                        }
+            for mut m in self.cross_query_helper(query.outer, 0, [0;MAX_JOIN_SIZE], matcher, &query.predicate.patterns) {
+                let mut env = env.clone();
+                m.apply_to_env(&mut env);
+                if let Ok(Value::Boolean(true)) = env.eval_expr(&query.predicate.guard) {
+                    yield env.eval_expr(&query.projection);
+                    count+=1;
+                    if let Some(l) = query.predicate.limit && count >= l {
+                        break;
                     }
                 }
             }
         })
+    }
+
+
+    pub(crate) fn cross_query_helper<'e, 'x: 'e, 'i>(
+        &'x self,
+        outer: bool,
+        depth: usize,
+        skip: [usize;MAX_JOIN_SIZE],
+        matcher: Matcher<'i, 's, 'v, 'e>,
+        patterns: &'e [Pattern<'s>],
+    ) 
+    -> Box<dyn Iterator<Item = Matcher<'i, 's, 'v, 'e>> + 'e> {
+        let Some(pattern) = patterns.get(0) else {
+            return Box::new(Some(matcher.clone()).into_iter())
+        };
+
+        Box::new(gen_iter!(move {
+            for (idx, item) in self.items.iter().enumerate() {
+                if !outer && skip[0..depth].contains(&idx) {
+                    continue;
+                }
+
+                let mut m = matcher.clone();
+                let Ok(()) = m.match_pattern(pattern, item) else {
+                    continue;
+                };
+
+                let mut skip_x = skip;
+                skip_x[depth] = idx;
+
+                for mm in self.cross_query_helper(outer, depth+1, skip_x, m, &patterns[1..]) {
+                    yield mm;
+                }
+            }
+        }))
     }
 
     pub(crate) fn delete<'e, 'x: 'e, 'i>(

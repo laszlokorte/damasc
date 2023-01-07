@@ -22,7 +22,7 @@ pub(crate) struct CrossQuery<'s> {
 
 #[derive(Clone)]
 pub(crate) struct CrossPredicate<'s> {
-    pub(crate) patterns: [Pattern<'s>; 2],
+    pub(crate) patterns: Vec<Pattern<'s>>,
     pub(crate) guard: Expression<'s>,
     pub(crate) limit: Option<usize>,
 }

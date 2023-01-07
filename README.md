@@ -234,7 +234,7 @@ Pattern, transformation, filter and limit at once:
 7
 ```
 
-You can use multiple patterns (for now only two) to join multiple values:
+You can use multiple patterns to join multiple values:
 
 ```
 # queries all pairs of integers a and b and transforms them into a triplet of themself and their product.
@@ -244,6 +244,35 @@ You can use multiple patterns (for now only two) to join multiple values:
 [108, 42, 4536, ]
 [108, 23, 2484, ]
 [108, 23, 2484, ]
+```
+
+By default the joined values are distict, i.e. in the query above a and b are always different. But you can also join across duplicates. Below we first delete all values and then only insert `1` and `0`. The first `query` results in all two permutations of `1` and `0`. Then `queryx` (notice the `x`) results in all four combinations. The third query (without `x`) tries to find all triplets of distinct values but there are none because we only inserted two values (`1` and  `0`). The last `queryx` (with x) finds all eight (`8=2^3`) possible combinations for building triples of `1` and `0`.
+
+Currently the number of values you can join is limited 6. 
+
+```
+>> .delete _
+OK
+>> .insert 1;0
+OK
+>> .query a;b
+[1, 0, ]
+[0, 1, ]
+>> .queryx a;b
+[1, 1, ]
+[1, 0, ]
+[0, 1, ]
+[0, 0, ]
+>> .query a;b;c
+>> .queryx a;b;c
+[1, 1, 1, ]
+[1, 1, 0, ]
+[1, 0, 1, ]
+[1, 0, 0, ]
+[0, 1, 1, ]
+[0, 1, 0, ]
+[0, 0, 1, ]
+[0, 0, 0, ]
 ```
 
 You can export all inserted values into a text file (one value per line):

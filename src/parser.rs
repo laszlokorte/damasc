@@ -635,38 +635,29 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
                     value(false, tag(".query ")),
                 ))),
                 tuple((
-                    separated_pair(pattern, ws(tag(";")), pattern),
+                    separated_list1(ws(tag(";")), pattern),
                     opt(preceded(ws(tag("into")), expression)),
                     opt(preceded(ws(tag("where")), expression)),
                     opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
                 )),
             )),
-            |(outer, ((p1, p2), proj, guard, limit))| {
+            |(outer, (patterns, proj, guard, limit))| {
                 Statement::CrossQuery(CrossQuery {
                     outer,
-                    projection: proj.unwrap_or(Expression::Array(vec![
+                    projection: proj.unwrap_or(Expression::Array((0..patterns.len()).map(|i| {
                         ArrayItem::Single(Expression::Identifier(Identifier {
-                            name: Cow::Borrowed("$0"),
-                        })),
-                        ArrayItem::Single(Expression::Identifier(Identifier {
-                            name: Cow::Borrowed("$1"),
-                        })),
-                    ])),
+                            name: Cow::Owned(format!("${i}")),
+                        }))
+                    }).collect())),
                     predicate: CrossPredicate {
-                        patterns: [
+                        patterns: patterns.into_iter().enumerate().map(|(i,p)| {
                             Pattern::Capture(
                                 Identifier {
-                                    name: Cow::Borrowed("$0"),
+                                    name: Cow::Owned(format!("${i}")),
                                 },
-                                Box::new(p1),
-                            ),
-                            Pattern::Capture(
-                                Identifier {
-                                    name: Cow::Borrowed("$1"),
-                                },
-                                Box::new(p2),
-                            ),
-                        ],
+                                Box::new(p),
+                            )
+                        }).collect(),
                         guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
                         limit: limit.map(|l| l as usize),
                     },
