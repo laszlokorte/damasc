@@ -198,4 +198,12 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
             Err(PatternFail::LiteralMismatch)
         }
     }
+
+    pub(crate) fn make_env(&mut self) -> Environment<'i, 's, 'v> {
+        let mut new_env = self.env.clone();
+
+        self.apply_to_env(&mut new_env);
+
+        new_env
+    }
 }

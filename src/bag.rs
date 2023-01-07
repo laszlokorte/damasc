@@ -21,8 +21,13 @@ impl<'s, 'v> ValueBag<'s, 'v> {
         Self { items: Vec::new() }
     }
 
-    pub(crate) fn insert(&mut self, value: &Value<'s, 'v>) {
+    pub(crate) fn insert(&mut self, value: &Value<'s, 'v>) -> bool {
         self.items.push(Cow::Owned(value.clone()));
+        true
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.items.len()
     }
 
     pub(crate) fn pop(&mut self, value: &Value<'s, 'v>) -> bool {
@@ -65,7 +70,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
         })
     }
 
-    pub(crate) fn cross_query_helper<'e, 'x: 'e, 'i>(
+    fn cross_query_helper<'e, 'x: 'e, 'i>(
         &'x self,
         outer: bool,
         depth: usize,
@@ -102,7 +107,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
         &'x mut self,
         env: &'e Environment<'i, 's, 'v>,
         predicate: &'e Predicate<'s>,
-    ) {
+    ) -> usize {
         let mut counter = 0;
         let mut matcher = Matcher {
             env: &env.clone(),
@@ -134,6 +139,8 @@ impl<'s, 'v> ValueBag<'s, 'v> {
                 }
             }
         });
+
+        counter
     }
 
     pub(crate) fn iter<'x>(&'x self) -> std::slice::Iter<'x, std::borrow::Cow<'v, Value<'s, 'v>>> {

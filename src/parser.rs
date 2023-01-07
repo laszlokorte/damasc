@@ -602,7 +602,7 @@ fn pattern_atom<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     )(input)
 }
 
-fn pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
+pub(crate) fn pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     alt((
         pattern_atom,
         pattern_capture,

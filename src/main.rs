@@ -14,6 +14,7 @@ use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
 mod bag;
+mod typed_bag;
 mod env;
 mod expression;
 mod identifier;
@@ -32,6 +33,8 @@ use matcher::Matcher;
 use parser::{full_expression, statement};
 use statement::Statement;
 use value::Value;
+
+use crate::query::Predicate;
 
 impl<'s, 'v> Value<'s, 'v> {
     pub(crate) fn to_expression(&self) -> Expression<'s> {
@@ -68,7 +71,17 @@ fn main() -> rustyline::Result<()> {
         bindings: BTreeMap::new(),
     };
 
-    let mut bag = crate::bag::ValueBag::new();
+    let mut bag = crate::typed_bag::TypedBag::new(Predicate {
+        pattern: crate::parser::pattern("_").unwrap().1,
+        guard: full_expression("true").unwrap().1,
+        limit: None,
+    });
+    // let mut bag = crate::typed_bag::TypedBag::new(Predicate {
+    //     pattern: crate::parser::pattern("[x,y]").unwrap().1,
+    //     guard: full_expression("x>y").unwrap().1,
+    //     limit: Some(5),
+    // });
+    //let mut bag = crate::bag::ValueBag::new(); 
 
     let mut rl = Editor::<()>::new()?;
     if rl.load_history("history.txt").is_err() {
@@ -134,15 +147,20 @@ fn main() -> rustyline::Result<()> {
                             expressions.into_iter().map(|e| env.eval_expr(&e)).collect();
                         match values {
                             Ok(values) => {
+                                let mut counter = 0;
                                 for v in values {
-                                    bag.insert(&v);
+                                    if bag.insert(&v) {
+                                        counter += 1;
+                                    } else {
+                                        break;
+                                    }
                                 }
+                                println!("INSERTED {counter}");
                             }
                             Err(e) => {
                                 println!("Eval Error: {e:?}");
                             }
                         }
-                        println!("OK")
                     }
                     Statement::Query(query) => {
                         for projected in bag.query(&env, &query) {
@@ -153,8 +171,12 @@ fn main() -> rustyline::Result<()> {
                         }
                     }
                     Statement::Deletion(predicate) => {
-                        bag.delete(&env, &predicate);
-                        println!("OK");
+                        let count = bag.delete(&env, &predicate);
+                        if count > 0 {
+                            println!("DELETED {count}");
+                        } else {
+                            println!("NO");
+                        }
                     }
                     Statement::Pop(expression) => {
                         let Ok(value) = env.eval_expr(&expression) else {
