@@ -61,6 +61,7 @@ impl<'i, 's, 'v> Environment<'i, 's, 'v> {
             Expression::Call(CallExpression { function, argument }) => {
                 self.eval_call(function, &self.eval_expr(argument)?)
             }
+            Expression::Template(template) => self.eval_template(template),
         }
     }
 
@@ -416,5 +417,18 @@ impl<'i, 's, 'v> Environment<'i, 's, 'v> {
             "type" => Value::Type(argument.get_type()),
             _ => return Err(EvalError::UnknownFunction),
         })
+    }
+
+    fn eval_template<'x>(&self, template: &'x StringTemplate<'x>) -> Result<Value<'s, 'v>, EvalError> {
+        let joined = template.parts.iter().flat_map(move |part| {
+            let prefix = Ok(Cow::Owned(part.fixed_start.as_ref().into()));
+
+            let Ok(Value::String(end)) = self.eval_expr(&part.dynamic_end) else {
+                return [prefix, Err(EvalError::TypeError)];
+            };
+            [prefix, Ok(end)]
+        }).chain(Some(Ok(Cow::Owned(template.suffix.as_ref().into())))).collect::<Result<Vec<Cow<'s, str>>,_>>()?;
+
+        return Ok(Value::String(Cow::Owned(joined.join(""))))
     }
 }

@@ -184,3 +184,6 @@ keys({"1": "one", "2":"two", "3":"three"})
 {"1": "one", "2":"two", "3":"three"}["3"]
 "three"
 ---
+`hello, is ${["you","me"][1]} you are ${["looking","singing"][0]} for?`
+"hello, is me you are looking for?"
+---

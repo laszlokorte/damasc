@@ -1,11 +1,11 @@
 use std::borrow::Cow;
 
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take_until};
+use nom::bytes::complete::{tag, take_until, is_not};
 use nom::character::complete::{alpha1, char, i64, multispace0};
 use nom::combinator::{all_consuming, map, opt, recognize, value, verify};
 use nom::error::ParseError;
-use nom::multi::{fold_many0, many1, separated_list0, separated_list1};
+use nom::multi::{fold_many0, many1, separated_list0, separated_list1, many0};
 use nom::sequence::{delimited, pair, preceded, separated_pair, terminated, tuple};
 use nom::IResult;
 
@@ -116,6 +116,7 @@ fn expression_literal<'v>(input: &str) -> IResult<&str, Expression<'v>> {
     alt((
         expression_object,
         expression_array,
+        expression_string_template,
         expression_call,
         expression_atom,
     ))(input)
@@ -140,6 +141,22 @@ fn expression_identifier<'v>(input: &str) -> IResult<&str, Expression<'v>> {
 
 fn literal_null<'v>(input: &str) -> IResult<&str, Literal<'v>> {
     value(Literal::Null, tag("null"))(input)
+}
+
+fn string_template_part<'v>(input: &str) -> IResult<&str, StringTemplatePart<'v>> {
+    map(
+        tuple((recognize(take_until("${")), delimited(tag("${"), expression, tag("}")))),
+        |(fixed_start,dynamic_end)| {
+            StringTemplatePart { fixed_start: Cow::Owned(fixed_start.into()), dynamic_end: Box::new(dynamic_end) }
+        }
+    )(input)
+}
+
+fn expression_string_template<'v>(input: &str) -> IResult<&str, Expression<'v>> {
+    map(
+        delimited(tag("`"), tuple((many0(string_template_part), recognize(many0(is_not("`"))))), tag("`")),
+        |(parts, s)| Expression::Template(StringTemplate { parts, suffix: Cow::Owned(s.to_string()) }),
+    )(input)
 }
 
 fn literal_string_raw<'v>(input: &str) -> IResult<&str, Cow<'v, str>> {

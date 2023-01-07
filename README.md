@@ -42,10 +42,9 @@ Damasc is not a replacement for ES6 but only inspired by a specific subset of fe
 
 ## Todo
 
-* implement simple template literal strings (for string concatination)
 * implement advanced integer syntax (eg 10_000, maybe hex, oct and dual basis)
 * improve error reporting
-* Allow collections (bags, multisets) of values to be created and queried via pattern syntax. eg: 
+
 ```
 >> .bag mybag
 OK

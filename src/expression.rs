@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::identifier::Identifier;
 use crate::literal::Literal;
 
@@ -12,6 +14,7 @@ pub(crate) enum Expression<'s> {
     Object(ObjectExpression<'s>),
     Unary(UnaryExpression<'s>),
     Call(CallExpression<'s>),
+    Template(StringTemplate<'s>)
 }
 
 impl std::fmt::Display for Expression<'_> {
@@ -53,6 +56,18 @@ pub(crate) enum PropertyKey<'a> {
 pub(crate) struct CallExpression<'a> {
     pub(crate) function: Identifier<'a>,
     pub(crate) argument: Box<Expression<'a>>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct StringTemplate<'a> {
+    pub(crate) parts: Vec<StringTemplatePart<'a>>,
+    pub(crate) suffix: Cow<'a, str>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct StringTemplatePart<'a> {
+    pub(crate) fixed_start: Cow<'a, str>,
+    pub(crate) dynamic_end: Box<Expression<'a>>,
 }
 
 #[derive(Clone, Debug)]
