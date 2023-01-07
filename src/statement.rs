@@ -3,12 +3,14 @@ use std::borrow::Cow;
 use crate::{
     expression::Expression,
     pattern::Pattern,
-    query::{Predicate, Query},
+    query::{Predicate, Query}, identifier::Identifier,
 };
 
 #[derive(Clone)]
 pub(crate) enum Statement<'a, 'b> {
     Clear,
+    Exit,
+    Help,
     Inspect(Expression<'b>),
     Format(Expression<'b>),
     Eval(Expression<'b>),
@@ -22,4 +24,6 @@ pub(crate) enum Statement<'a, 'b> {
     Deletion(Predicate<'a>),
     Import(Cow<'b, str>),
     Export(Cow<'b, str>),
+    UseBag(Identifier<'b>, Option<Predicate<'b>>),
+    TellBag,
 }

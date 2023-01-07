@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub(crate) struct Identifier<'a> {
     pub(crate) name: Cow<'a, str>,
 }

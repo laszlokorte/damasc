@@ -303,6 +303,62 @@ You can also limit the amount of objects to delete. The following command delete
 OK
 ```
 
-## Todo (bags)
+You can create multiple distinct bags. The initial bag is called `init`. To create a new empty bag type `.bag <somename>`:
 
-* Allow definining multiple (named) bags and inserting values into them.
+```
+>> .bag groceries
+CREATED BAG
+```
+
+Values are always inserted into the current bag, deleted from the current bag und queried from the current bag. To switch to another bag use the same command as for creation:
+
+```
+>> .bag init
+SWITCHED BAG
+```
+
+The `.load` and `.store` commands explained above act on the current bag as well.
+
+To tell which bag is currently select just type `.bag`.
+
+```
+>> .bag
+Current Bag: init
+```
+
+You can also create a constrained bag that accepts only values matching a given pattern. 
+
+```
+>> .bag users as {username: _ is String, age: _ is Integer}
+CREATED BAG
+>> .insert "Luke"
+NO
+>> .insert {username: "Hurley", age: 42}
+INSERTED 1
+```
+
+Or a given predicate:
+
+```
+>> .bag adults as {username: _ is String, age: age is Integer} where age >= 18
+CREATED BAG
+>> .insert {username: "Matilda", age: 8}
+NO
+>> .insert {username: "Hurley", age: 42}
+INSERTED 1
+```
+
+Or limit the number of items:
+
+```
+>> .bag admins as {username: _ is String} limit 1
+CREATED BAG
+>> .insert {username: "Locke"}
+INSERTED 1
+>> .insert {username: "Jack"}
+NO
+>> .delete _
+DELETED 1
+>> .insert {username: "Jack"}
+INSERTED 1
+```

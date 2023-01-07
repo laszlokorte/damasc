@@ -5,7 +5,7 @@
 #![feature(generators)]
 
 use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::{self, BufRead, LineWriter};
 
@@ -35,6 +35,7 @@ use statement::Statement;
 use value::Value;
 
 use crate::query::Predicate;
+use crate::typed_bag::TypedBag;
 
 impl<'s, 'v> Value<'s, 'v> {
     pub(crate) fn to_expression(&self) -> Expression<'s> {
@@ -66,28 +67,31 @@ impl<'s, 'v> Value<'s, 'v> {
     }
 }
 
+const INITIAL_BAG_NAME : &str = "init";
+
 fn main() -> rustyline::Result<()> {
     let mut env = Environment {
         bindings: BTreeMap::new(),
     };
 
-    let mut bag = crate::typed_bag::TypedBag::new(Predicate {
+    let mut current_bag_name = Identifier { name: Cow::Borrowed(INITIAL_BAG_NAME) };
+    let mut bags = HashMap::<Identifier, TypedBag>::new();
+    bags.insert(current_bag_name.clone(), crate::typed_bag::TypedBag::new(Predicate {
         pattern: crate::parser::pattern("_").unwrap().1,
         guard: full_expression("true").unwrap().1,
         limit: None,
-    });
-    // let mut bag = crate::typed_bag::TypedBag::new(Predicate {
-    //     pattern: crate::parser::pattern("[x,y]").unwrap().1,
-    //     guard: full_expression("x>y").unwrap().1,
-    //     limit: Some(5),
-    // });
-    //let mut bag = crate::bag::ValueBag::new(); 
+    })); 
 
     let mut rl = Editor::<()>::new()?;
     if rl.load_history("history.txt").is_err() {
         println!("No previous history.");
     }
+
+    println!("Welcome");
     println!("press CTRL-D to exit.");
+    println!(".bag");
+    println!("Current Bag: {current_bag_name}");
+
     loop {
         let readline = rl.readline(">> ");
         match readline {
@@ -106,8 +110,37 @@ fn main() -> rustyline::Result<()> {
                 match stmt {
                     Statement::Clear => {
                         env.clear();
-                    }
-                    Statement::Import(filename) => {
+                    },
+                    Statement::Exit => {
+                        break;
+                    },
+                    Statement::Help => {
+                        println!("Interactive help is not yet implemented. Please take a look at the README.md file");
+                    },
+                    Statement::TellBag => {
+                        println!("Current Bag: {current_bag_name}");
+                    },
+                    Statement::UseBag(bag_id, pred) => {
+                        current_bag_name = bag_id;
+                        let wants_create = pred.is_some();
+                        if bags.try_insert(current_bag_name.clone(), crate::typed_bag::TypedBag::new(pred.unwrap_or(Predicate {
+                            pattern: crate::parser::pattern("_").unwrap().1,
+                            guard: full_expression("true").unwrap().1,
+                            limit: None,
+                        }))).is_ok(){
+                            println!("CREATED BAG");
+                        } else {
+                            if wants_create {
+                                println!("BAG ALREADY EXISTS");
+                            }
+                            println!("SWITCHED BAG");
+                        };
+                    },
+                    Statement::Import(filename) => {             
+                        let Some(bag) = bags.get_mut(&current_bag_name) else {
+                            continue;
+                        };
+
                         let Ok(file) = File::open(filename.as_ref()) else {
                             println!("No file: {filename}");
                             continue;
@@ -129,20 +162,32 @@ fn main() -> rustyline::Result<()> {
                             };
                             bag.insert(&value);
                         }
+
+                        println!("Imported values from file '{filename}' into current bag({current_bag_name})");
                     }
                     Statement::Export(filename) => {
-                        use std::io::Write;
+                        use std::io::Write;          
+                        let Some(bag) = bags.get_mut(&current_bag_name) else {
+                            continue;
+                        };
 
                         let Ok(file) = File::create(filename.as_ref()) else {
                             println!("File {filename} could not be created");
                             continue;
                         };
-                        let mut file = LineWriter::new(file);
-                        for v in bag.iter() {
-                            let _ = writeln!(file, "{v}");
+                        {
+                            let mut file = LineWriter::new(file);
+                            for v in bag.iter() {
+                                let _ = writeln!(file, "{v}");
+                            }
                         }
+                        println!("Current bag({current_bag_name}) written to file: {filename}");
                     }
-                    Statement::Insert(expressions) => {
+                    Statement::Insert(expressions) => {          
+                        let Some(bag) = bags.get_mut(&current_bag_name) else {
+                            continue;
+                        };
+
                         let values: Result<Vec<Value>, EvalError> =
                             expressions.into_iter().map(|e| env.eval_expr(&e)).collect();
                         match values {
@@ -155,14 +200,22 @@ fn main() -> rustyline::Result<()> {
                                         break;
                                     }
                                 }
-                                println!("INSERTED {counter}");
+                                if counter > 0 {
+                                    println!("INSERTED {counter}");
+                                } else {
+                                    println!("NO");
+                                }
                             }
                             Err(e) => {
                                 println!("Eval Error: {e:?}");
                             }
                         }
                     }
-                    Statement::Query(query) => {
+                    Statement::Query(query) => {          
+                        let Some(bag) = bags.get_mut(&current_bag_name) else {
+                            continue;
+                        };
+
                         for projected in bag.query(&env, &query) {
                             match projected {
                                 Ok(v) => println!("{v}"),
@@ -170,7 +223,11 @@ fn main() -> rustyline::Result<()> {
                             }
                         }
                     }
-                    Statement::Deletion(predicate) => {
+                    Statement::Deletion(predicate) => {          
+                        let Some(bag) = bags.get_mut(&current_bag_name) else {
+                            continue;
+                        };
+
                         let count = bag.delete(&env, &predicate);
                         if count > 0 {
                             println!("DELETED {count}");
@@ -179,6 +236,10 @@ fn main() -> rustyline::Result<()> {
                         }
                     }
                     Statement::Pop(expression) => {
+                        let Some(bag) = bags.get_mut(&current_bag_name) else {
+                            continue;
+                        };
+
                         let Ok(value) = env.eval_expr(&expression) else {
                             continue;
                         };

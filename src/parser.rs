@@ -638,7 +638,9 @@ fn filename(input: &str) -> IResult<&str, &str> {
 
 pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
     all_consuming(alt((
-        value(Statement::Clear, tag(".clear")),
+        all_consuming(value(Statement::Clear, tag(".clear"))),
+        all_consuming(value(Statement::Exit, ws(alt((tag(".exit"), tag(".quit")))))),
+        all_consuming(value(Statement::Help, ws(alt((tag(".help"), tag(".h")))))),
         map(preceded(ws(tag(".load ")), filename), |f| {
             Statement::Import(Cow::Owned(f.into()))
         }),
@@ -755,6 +757,25 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
         map(
             preceded(ws(tag(".literal ")), full_expression),
             Statement::Literal,
+        ),
+        value(Statement::TellBag, all_consuming(ws(tag(".bag")))),
+        map(
+            preceded(ws(tag(".bag ")), all_consuming(ws(identifier))),
+            |p| Statement::UseBag(p,None),
+        ),
+
+        map(
+            preceded(ws(tag(".bag ")), tuple((
+                identifier,
+                preceded(ws(tag("as")), pattern),
+                opt(preceded(ws(tag("where")), expression)),
+                opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
+            ))),
+            |(name, pattern, guard, limit)| Statement::UseBag(name,Some(Predicate {
+                pattern,
+                guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
+                limit: limit.map(|l| l as usize),
+            })),
         ),
         assignment,
         try_match,
