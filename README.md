@@ -145,3 +145,103 @@ Or print the syntax tree of a pattern:
     Discard,
 )
 ```
+
+## Value Bags
+
+You can insert values into a in memory database to be queried later:
+
+```
+>> .insert 42
+OK
+```
+
+Duplicate values can be inserted:
+
+```
+>> .insert 23
+OK
+>> .insert 23
+OK
+```
+
+You can insert multiple values at once:
+
+```
+>> .insert 108;"hello";[1,2,3]
+OK
+```
+
+You can query the dataset:
+
+```
+> .query _
+42
+23
+23
+108
+"hello"
+[1,2,3]
+```
+
+The number of results can be limited:
+
+```
+> .query _ limit 2
+42
+23
+```
+
+The number of results can be limited:
+
+```
+> .query x into x*x limit 2
+42
+23
+```
+
+The queried values can be captured in a variable and transformed:
+
+```
+> .query x into x*x limit 2
+529
+1764
+```
+
+A pattern can be used to query only matching values:
+
+```
+> .query [x,y,z]
+[1,2,3]
+```
+
+The identifiers bound by the pattern can be transformed:
+```
+> .query [x,y,z] into x+y*z
+7
+```
+
+The results can be filtered by an additional predicate:
+
+```
+> .query [x,y,z] into x+y*z where z > x
+7
+```
+
+Pattern, transformation, filter and limit at once:
+
+```
+> .query [x,y,z] into x+y*z where z > x limit 1
+7
+```
+
+You can use multiple patterns (for now only two) to join multiple values:
+
+```
+# queries all pairs of integers a and b and transforms them into a triplet of themself and their product.
+> .query a is Integer;b is Integer into [a, b, a*b] where a > b
+[42, 23, 966, ]
+[42, 23, 966, ]
+[108, 42, 4536, ]
+[108, 23, 2484, ]
+[108, 23, 2484, ]
+```
