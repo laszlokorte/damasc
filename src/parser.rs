@@ -702,6 +702,28 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
             },
         ),
         map(
+            preceded(
+                ws(tuple((tag(".query"), opt(tag(" "))))),
+                opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
+            ),
+            |limit| {
+                Statement::Query(Query {
+                    projection: Expression::Identifier(Identifier {
+                        name: Cow::Borrowed("$"),
+                    }),
+                    predicate: Predicate {
+                        pattern: Pattern::Identifier(
+                            Identifier {
+                                name: Cow::Borrowed("$"),
+                            },
+                        ),
+                        guard: Expression::Literal(Literal::Boolean(true)),
+                        limit: limit.map(|l| l as usize),
+                    },
+                })
+            },
+        ),
+        map(
             preceded(ws(tag(".literal ")), full_expression),
             Statement::Literal,
         ),
