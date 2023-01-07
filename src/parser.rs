@@ -523,8 +523,21 @@ fn pattern_array<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     )(input)
 }
 
+fn pattern_capture<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
+    map(separated_pair(
+        ws(identifier), 
+        ws(tag("@")), 
+        alt((
+            pattern_array,
+            pattern_object,
+        ))
+    ), 
+    |(id, pat)| Pattern::Capture(id, Box::new(pat)))(input)
+}
+
 fn pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     alt((
+        pattern_capture,
         pattern_array,
         pattern_typed_discard,
         pattern_typed_identifier,
