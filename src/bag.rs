@@ -8,7 +8,7 @@ use crate::{
     env::{Environment, EvalError},
     matcher::Matcher,
     pattern::Pattern,
-    query::{CrossQuery, Predicate, Query},
+    query::{Predicate, Query},
     value::Value,
 };
 
@@ -38,33 +38,6 @@ impl<'s, 'v> ValueBag<'s, 'v> {
         &'x self,
         env: &'e Environment<'i, 's, 'v>,
         query: &'e Query<'s>,
-    ) -> impl Iterator<Item = Result<Value<'s, 'v>, EvalError>> + 'e {
-        gen_iter!(move {
-            let mut count = 0;
-            for item in self.items.iter() {
-                let mut matcher = Matcher {
-                    env: &env.clone(),
-                    bindings: BTreeMap::new(),
-                };
-                if let Ok(()) = matcher.match_pattern(&query.predicate.pattern, item.as_ref()) {
-                    let mut env = env.clone();
-                    matcher.apply_to_env(&mut env);
-                    if let Ok(Value::Boolean(true)) = env.eval_expr(&query.predicate.guard) {
-                        yield env.eval_expr(&query.projection);
-                        count+=1;
-                        if let Some(l) = query.predicate.limit && count >= l {
-                            break;
-                        }
-                    }
-                }
-            }
-        })
-    }
-
-    pub(crate) fn cross_query<'e, 'x: 'e, 'i>(
-        &'x self,
-        env: &'e Environment<'i, 's, 'v>,
-        query: &'e CrossQuery<'s>,
     ) -> impl Iterator<Item = Result<Value<'s, 'v>, EvalError>> + 'e {
         gen_iter!(move {
             let matcher = Matcher {

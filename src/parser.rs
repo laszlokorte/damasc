@@ -13,7 +13,7 @@ use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::literal::Literal;
 use crate::pattern::*;
-use crate::query::{CrossPredicate, CrossQuery, Predicate, Query};
+use crate::query::{CrossPredicate, Predicate, Query};
 use crate::statement::Statement;
 use crate::value::ValueType;
 
@@ -675,16 +675,20 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
                     value(false, tag(".query ")),
                 ))),
                 tuple((
-                    separated_list1(ws(tag(";")), pattern),
+                    separated_list1(ws(tag(";")), ws(pattern)),
                     opt(preceded(ws(tag("into")), expression)),
                     opt(preceded(ws(tag("where")), expression)),
                     opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
                 )),
             )),
             |(outer, (patterns, proj, guard, limit))| {
-                Statement::CrossQuery(CrossQuery {
+                Statement::Query(Query {
                     outer,
-                    projection: proj.unwrap_or(Expression::Array(
+                    projection: proj.unwrap_or_else(||if patterns.len() == 1 {
+                        Expression::Identifier(Identifier {
+                            name: Cow::Borrowed("$0"),
+                        })
+                    } else {Expression::Array(
                         (0..patterns.len())
                             .map(|i| {
                                 ArrayItem::Single(Expression::Identifier(Identifier {
@@ -692,7 +696,7 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
                                 }))
                             })
                             .collect(),
-                    )),
+                    )}),
                     predicate: CrossPredicate {
                         patterns: patterns
                             .into_iter()
@@ -714,46 +718,19 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
         ),
         map(
             preceded(
-                ws(tag(".query ")),
-                tuple((
-                    pattern,
-                    opt(preceded(ws(tag("into")), expression)),
-                    opt(preceded(ws(tag("where")), expression)),
-                    opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
-                )),
-            ),
-            |(pattern, proj, guard, limit)| {
-                Statement::Query(Query {
-                    projection: proj.unwrap_or(Expression::Identifier(Identifier {
-                        name: Cow::Borrowed("$"),
-                    })),
-                    predicate: Predicate {
-                        pattern: Pattern::Capture(
-                            Identifier {
-                                name: Cow::Borrowed("$"),
-                            },
-                            Box::new(pattern),
-                        ),
-                        guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
-                        limit: limit.map(|l| l as usize),
-                    },
-                })
-            },
-        ),
-        map(
-            preceded(
                 ws(tuple((tag(".query"), opt(tag(" "))))),
                 opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
             ),
             |limit| {
                 Statement::Query(Query {
+                    outer: false,
                     projection: Expression::Identifier(Identifier {
                         name: Cow::Borrowed("$"),
                     }),
-                    predicate: Predicate {
-                        pattern: Pattern::Identifier(Identifier {
+                    predicate: CrossPredicate {
+                        patterns: vec![Pattern::Identifier(Identifier {
                             name: Cow::Borrowed("$"),
-                        }),
+                        })],
                         guard: Expression::Literal(Literal::Boolean(true)),
                         limit: limit.map(|l| l as usize),
                     },

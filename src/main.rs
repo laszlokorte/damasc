@@ -94,14 +94,6 @@ fn main() -> rustyline::Result<()> {
                     Statement::Clear => {
                         env.clear();
                     }
-                    Statement::CrossQuery(query) => {
-                        for projected in bag.cross_query(&env, &query) {
-                            match projected {
-                                Ok(v) => println!("{v}"),
-                                Err(e) => println!("Error: {e:?}"),
-                            }
-                        }
-                    }
                     Statement::Import(filename) => {
                         let Ok(file) = File::open(filename.as_ref()) else {
                             println!("No file: {filename}");
