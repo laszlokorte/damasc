@@ -10,12 +10,14 @@ Includes only: null, boolean, string, integer, array and object literals.
 
 The only operations that are allowed are: 
 * the type of a value can be checked via `is` operator. eg `(5*3) is Integer` evaluates to `true`.
+* values can be casted into other types via `as` operator. eg `42 as String` evaluates to `"42"`. Not every value can be casted into every type. Only the most straight-forward conversions are possible. This may change in the future.
 * arithmetic (`*`,`/`,`+`,`-`,`^`) on intengers, eg `3+5*7` evaluates to `38`
 * comparison (`<`,`>`,`<=`,`>=`) on intengers, eg `108 > 23` evaluates to `true`
 * logical operations on bools (`!`, `&&`, `||`), eg `23 > 5 && !(23 > 10)` evaluates to `false`
 * strict (in)equality (`==`, `!=`), eg `[1,2,3] == [1,2,3]` evaluates to `true`, but `5 == "foo"` evaluates to `false`
 * intenger-indexed access on arrays and strings (negativ index points from the end), eg `["a","b","c"][0] == ["a","b","c"][-2]`
 * string-indexed access on objects, eg `"ciao"[0] == "ciao"[-4]`
+* string concatination via template strings, eg ``x + y = ${x+y}`` evaluates to `"3+7 = 10"` if `x` equals `3` and `y` equals `7`
 * literal array construction: `[23,"foo",true]`
 * literal object construction: `{foo: 42, ["bar"]: 23}`
 * literal object construction with computed key: `{foo: 42, [["bar","baz"][1]]: 23} == {baz: 23, foo: 42, }`
