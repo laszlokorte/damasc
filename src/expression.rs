@@ -1,7 +1,5 @@
-use std::borrow::Cow;
-
 use crate::identifier::Identifier;
-use crate::value::ValueType;
+use crate::literal::Literal;
 
 #[derive(Clone, Debug)]
 pub(crate) enum Expression<'s> {
@@ -121,13 +119,4 @@ pub(crate) enum UnaryOperator {
 pub(crate) struct MemberExpression<'a> {
     pub(crate) object: Box<Expression<'a>>,
     pub(crate) property: Box<Expression<'a>>,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) enum Literal<'s> {
-    Null,
-    String(Cow<'s, str>),
-    Number(Cow<'s, str>),
-    Boolean(bool),
-    Type(ValueType),
 }

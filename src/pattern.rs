@@ -1,5 +1,6 @@
 use crate::expression::PropertyKey;
 use crate::identifier::Identifier;
+use crate::literal::Literal;
 use crate::value::ValueType;
 
 #[derive(Clone, Debug)]
@@ -9,14 +10,17 @@ pub(crate) enum Pattern<'s> {
     Identifier(Identifier<'s>),
     TypedDiscard(ValueType),
     TypedIdentifier(Identifier<'s>, ValueType),
+    Literal(Literal<'s>),
     Object(ObjectPattern<'s>, Rest<'s>),
     Array(ArrayPattern<'s>, Rest<'s>),
 }
+
 
 impl<'a> std::fmt::Display for Pattern<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let _ = match self {
             Pattern::Discard => write!(f, "_"),
+            Pattern::Literal(l) => write!(f, "{l}"),
             Pattern::Capture(id, pat) => write!(f, "{pat} @ {id}"),
             Pattern::TypedDiscard(t) => write!(f, "_ is {t}"),
             Pattern::Identifier(id) => write!(f, "{id}"),

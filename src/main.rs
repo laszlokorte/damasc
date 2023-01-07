@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{self, BufRead, LineWriter};
 
+use literal::Literal;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
@@ -22,9 +23,9 @@ mod pattern;
 mod query;
 mod statement;
 mod value;
+mod literal;
 
-use env::Environment;
-use expression::Literal;
+use env::{Environment, EvalError};
 use expression::*;
 use identifier::Identifier;
 use matcher::Matcher;
@@ -127,11 +128,18 @@ fn main() -> rustyline::Result<()> {
                             let _ = writeln!(file, "{v}");
                         }
                     }
-                    Statement::Insert(expression) => {
-                        let Ok(value) = env.eval_expr(&expression) else {
-                            continue;
-                        };
-                        bag.insert(&value);
+                    Statement::Insert(expressions) => {
+                        let values : Result<Vec<Value>, EvalError> = expressions.into_iter().map(|e| env.eval_expr(&e)).collect();
+                        match values {
+                            Ok(values) => {
+                                for v in values {
+                                    bag.insert(&v);
+                                }
+                            },
+                            Err(e) => {
+                                println!("Eval Error: {e:?}");
+                            },
+                        }
                         println!("OK")
                     }
                     Statement::Query(query) => {

@@ -16,7 +16,7 @@ pub(crate) enum Statement<'a, 'b> {
     Pattern(Pattern<'b>),
     Assign(Pattern<'a>, Expression<'b>),
     Match(Pattern<'a>, Expression<'b>),
-    Insert(Expression<'b>),
+    Insert(Vec<Expression<'b>>),
     Pop(Expression<'b>),
     Query(Query<'a>),
     Deletion(Predicate<'a>),

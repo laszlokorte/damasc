@@ -5,13 +5,13 @@ use nom::bytes::complete::{tag, take_until};
 use nom::character::complete::{alpha1, char, i64, multispace0};
 use nom::combinator::{all_consuming, map, opt, recognize, value, verify};
 use nom::error::ParseError;
-use nom::multi::{fold_many0, separated_list0};
+use nom::multi::{fold_many0, separated_list0, separated_list1, many1};
 use nom::sequence::{delimited, pair, preceded, separated_pair, terminated, tuple};
 use nom::IResult;
 
-use crate::expression::Literal;
 use crate::expression::*;
 use crate::identifier::Identifier;
+use crate::literal::Literal;
 use crate::pattern::*;
 use crate::query::{Predicate, Query};
 use crate::statement::Statement;
@@ -422,6 +422,10 @@ fn expression<'v>(input: &str) -> IResult<&str, Expression<'v>> {
     alt((expression_logic_additive,))(input)
 }
 
+fn expression_bag<'v>(input: &str) -> IResult<&str, std::vec::Vec<Expression<'v>>> {
+    separated_list1(ws(tag(";")), expression)(input)
+}
+
 pub(crate) fn full_expression<'v>(input: &str) -> IResult<&str, Expression<'v>> {
     all_consuming(expression)(input)
 }
@@ -528,6 +532,7 @@ fn pattern_capture<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
         ws(identifier), 
         ws(tag("@")), 
         alt((
+            pattern_atom,
             pattern_array,
             pattern_object,
         ))
@@ -535,8 +540,23 @@ fn pattern_capture<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     |(id, pat)| Pattern::Capture(id, Box::new(pat)))(input)
 }
 
+
+fn pattern_atom<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
+    map(
+        alt((
+            literal_null,
+            literal_string,
+            literal_bool,
+            literal_number,
+            literal_type,
+        )),
+        Pattern::Literal,
+    )(input)
+}
+
 fn pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     alt((
+        pattern_atom,
         pattern_capture,
         pattern_array,
         pattern_typed_discard,
@@ -564,11 +584,15 @@ pub(crate) fn try_match<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>>
     )(input)
 }
 
+fn filename(input: &str) -> IResult<&str,&str> {
+    recognize(many1(alt((alpha1, tag("_")))))(input)
+}
+
 pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
-    alt((
+    all_consuming(alt((
         value(Statement::Clear, tag(".clear")),
-        map(preceded(ws(tag(".load ")), alpha1), |f| Statement::Import(Cow::Owned(f.into()))),
-        map(preceded(ws(tag(".dump ")), alpha1), |f| Statement::Export(Cow::Owned(f.into()))),
+        map(preceded(ws(tag(".load ")), filename), |f| Statement::Import(Cow::Owned(f.into()))),
+        map(preceded(ws(tag(".dump ")), filename), |f| Statement::Export(Cow::Owned(f.into()))),
         map(
             preceded(ws(tag(".inspect ")), full_expression),
             Statement::Inspect,
@@ -578,7 +602,7 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
             Statement::Format,
         ),
         map(
-            preceded(ws(tag(".insert ")), full_expression),
+            preceded(ws(tag(".insert ")), expression_bag),
             Statement::Insert,
         ),
         map(preceded(ws(tag(".pop ")), full_expression), Statement::Pop),
@@ -606,12 +630,12 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
         map(
             preceded(
                 ws(tag(".query ")),
-                all_consuming(tuple((
+                tuple((
                     pattern,
                     opt(preceded(ws(tag("into")), expression)),
                     opt(preceded(ws(tag("where")), expression)),
                     opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
-                ))),
+                )),
             ),
             |(pattern, proj, guard, limit)| {
                 Statement::Query(Query {
@@ -631,5 +655,5 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
         assignment,
         try_match,
         map(full_expression, Statement::Eval),
-    ))(input)
+    )))(input)
 }

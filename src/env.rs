@@ -1,6 +1,6 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
-use crate::{expression::*, identifier::Identifier, value::Value};
+use crate::{expression::*, identifier::Identifier, value::Value, literal::Literal};
 
 #[derive(Clone)]
 pub(crate) struct Environment<'i, 's, 'v> {
