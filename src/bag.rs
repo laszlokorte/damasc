@@ -1,12 +1,12 @@
-use std::{collections::{BTreeMap}, borrow::Cow};
+use std::{borrow::Cow, collections::BTreeMap};
 
 use gen_iter::gen_iter;
 
 use crate::{
     env::{Environment, EvalError},
     matcher::Matcher,
-    query::{Predicate, Query, CrossQuery},
-    value::Value, 
+    query::{CrossQuery, Predicate, Query},
+    value::Value,
 };
 
 pub(crate) struct ValueBag<'s, 'v> {
@@ -15,9 +15,7 @@ pub(crate) struct ValueBag<'s, 'v> {
 
 impl<'s, 'v> ValueBag<'s, 'v> {
     pub(crate) fn new() -> Self {
-        Self {
-            items: Vec::new(),
-        }
+        Self { items: Vec::new() }
     }
 
     pub(crate) fn insert(&mut self, value: &Value<'s, 'v>) {
@@ -26,7 +24,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
 
     pub(crate) fn pop(&mut self, value: &Value<'s, 'v>) -> bool {
         if let Some(pos) = self.items.iter().position(|i| i.as_ref() == value) {
-            self.items.swap_remove(pos); 
+            self.items.swap_remove(pos);
             true
         } else {
             false
@@ -92,13 +90,10 @@ impl<'s, 'v> ValueBag<'s, 'v> {
                             }
                         }
                     }
-                    
-
                 }
             }
         })
     }
-
 
     pub(crate) fn delete<'e, 'x: 'e, 'i>(
         &'x mut self,
@@ -126,7 +121,8 @@ impl<'s, 'v> ValueBag<'s, 'v> {
             } else {
                 let mut env = env.clone();
                 matcher.apply_to_env(&mut env);
-                let should_delete = matches!(env.eval_expr(&predicate.guard), Ok(Value::Boolean(true)));
+                let should_delete =
+                    matches!(env.eval_expr(&predicate.guard), Ok(Value::Boolean(true)));
                 if should_delete {
                     counter += 1;
                     false

@@ -5,7 +5,7 @@ use nom::bytes::complete::{tag, take_until};
 use nom::character::complete::{alpha1, char, i64, multispace0};
 use nom::combinator::{all_consuming, map, opt, recognize, value, verify};
 use nom::error::ParseError;
-use nom::multi::{fold_many0, separated_list0, separated_list1, many1};
+use nom::multi::{fold_many0, many1, separated_list0, separated_list1};
 use nom::sequence::{delimited, pair, preceded, separated_pair, terminated, tuple};
 use nom::IResult;
 
@@ -13,7 +13,7 @@ use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::literal::Literal;
 use crate::pattern::*;
-use crate::query::{Predicate, Query, CrossQuery, CrossPredicate};
+use crate::query::{CrossPredicate, CrossQuery, Predicate, Query};
 use crate::statement::Statement;
 use crate::value::ValueType;
 
@@ -528,18 +528,15 @@ fn pattern_array<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
 }
 
 fn pattern_capture<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
-    map(separated_pair(
-        ws(identifier), 
-        ws(tag("@")), 
-        alt((
-            pattern_atom,
-            pattern_array,
-            pattern_object,
-        ))
-    ), 
-    |(id, pat)| Pattern::Capture(id, Box::new(pat)))(input)
+    map(
+        separated_pair(
+            ws(identifier),
+            ws(tag("@")),
+            alt((pattern_atom, pattern_array, pattern_object)),
+        ),
+        |(id, pat)| Pattern::Capture(id, Box::new(pat)),
+    )(input)
 }
-
 
 fn pattern_atom<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     map(
@@ -584,15 +581,19 @@ pub(crate) fn try_match<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>>
     )(input)
 }
 
-fn filename(input: &str) -> IResult<&str,&str> {
+fn filename(input: &str) -> IResult<&str, &str> {
     recognize(many1(alt((alpha1, tag("_")))))(input)
 }
 
 pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
     all_consuming(alt((
         value(Statement::Clear, tag(".clear")),
-        map(preceded(ws(tag(".load ")), filename), |f| Statement::Import(Cow::Owned(f.into()))),
-        map(preceded(ws(tag(".dump ")), filename), |f| Statement::Export(Cow::Owned(f.into()))),
+        map(preceded(ws(tag(".load ")), filename), |f| {
+            Statement::Import(Cow::Owned(f.into()))
+        }),
+        map(preceded(ws(tag(".dump ")), filename), |f| {
+            Statement::Export(Cow::Owned(f.into()))
+        }),
         map(
             preceded(ws(tag(".inspect ")), full_expression),
             Statement::Inspect,
@@ -629,7 +630,10 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
         ),
         map(
             tuple((
-                ws(alt((value(true, tag(".queryx ")), value(false, tag(".query "))))),
+                ws(alt((
+                    value(true, tag(".queryx ")),
+                    value(false, tag(".query ")),
+                ))),
                 tuple((
                     separated_pair(pattern, ws(tag(";")), pattern),
                     opt(preceded(ws(tag("into")), expression)),
@@ -637,17 +641,31 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
                     opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
                 )),
             )),
-            |(outer, ((p1,p2), proj, guard, limit))| {
+            |(outer, ((p1, p2), proj, guard, limit))| {
                 Statement::CrossQuery(CrossQuery {
                     outer,
                     projection: proj.unwrap_or(Expression::Array(vec![
-                        ArrayItem::Single(Expression::Identifier(Identifier{name: Cow::Borrowed("$0")})),
-                        ArrayItem::Single(Expression::Identifier(Identifier{name: Cow::Borrowed("$1")})),
+                        ArrayItem::Single(Expression::Identifier(Identifier {
+                            name: Cow::Borrowed("$0"),
+                        })),
+                        ArrayItem::Single(Expression::Identifier(Identifier {
+                            name: Cow::Borrowed("$1"),
+                        })),
                     ])),
                     predicate: CrossPredicate {
                         patterns: [
-                            Pattern::Capture(Identifier{name: Cow::Borrowed("$0")}, Box::new(p1)),
-                            Pattern::Capture(Identifier{name: Cow::Borrowed("$1")}, Box::new(p2))
+                            Pattern::Capture(
+                                Identifier {
+                                    name: Cow::Borrowed("$0"),
+                                },
+                                Box::new(p1),
+                            ),
+                            Pattern::Capture(
+                                Identifier {
+                                    name: Cow::Borrowed("$1"),
+                                },
+                                Box::new(p2),
+                            ),
                         ],
                         guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
                         limit: limit.map(|l| l as usize),
@@ -667,9 +685,16 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
             ),
             |(pattern, proj, guard, limit)| {
                 Statement::Query(Query {
-                    projection: proj.unwrap_or(Expression::Identifier(Identifier{name: Cow::Borrowed("$")})),
+                    projection: proj.unwrap_or(Expression::Identifier(Identifier {
+                        name: Cow::Borrowed("$"),
+                    })),
                     predicate: Predicate {
-                        pattern: Pattern::Capture(Identifier{name: Cow::Borrowed("$")}, Box::new(pattern)),
+                        pattern: Pattern::Capture(
+                            Identifier {
+                                name: Cow::Borrowed("$"),
+                            },
+                            Box::new(pattern),
+                        ),
                         guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
                         limit: limit.map(|l| l as usize),
                     },

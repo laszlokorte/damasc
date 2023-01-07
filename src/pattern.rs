@@ -15,7 +15,6 @@ pub(crate) enum Pattern<'s> {
     Array(ArrayPattern<'s>, Rest<'s>),
 }
 
-
 impl<'a> std::fmt::Display for Pattern<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let _ = match self {

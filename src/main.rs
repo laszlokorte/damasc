@@ -17,19 +17,19 @@ mod bag;
 mod env;
 mod expression;
 mod identifier;
+mod literal;
 mod matcher;
 mod parser;
 mod pattern;
 mod query;
 mod statement;
 mod value;
-mod literal;
 
 use env::{Environment, EvalError};
 use expression::*;
 use identifier::Identifier;
 use matcher::Matcher;
-use parser::{statement, full_expression};
+use parser::{full_expression, statement};
 use statement::Statement;
 use value::Value;
 
@@ -92,7 +92,7 @@ fn main() -> rustyline::Result<()> {
                 match stmt {
                     Statement::Clear => {
                         env.clear();
-                    },
+                    }
                     Statement::CrossQuery(query) => {
                         for projected in bag.cross_query(&env, &query) {
                             match projected {
@@ -100,7 +100,7 @@ fn main() -> rustyline::Result<()> {
                                 Err(e) => println!("Error: {e:?}"),
                             }
                         }
-                    },
+                    }
                     Statement::Import(filename) => {
                         let Ok(file) = File::open(filename.as_ref()) else {
                             println!("No file: {filename}");
@@ -137,16 +137,17 @@ fn main() -> rustyline::Result<()> {
                         }
                     }
                     Statement::Insert(expressions) => {
-                        let values : Result<Vec<Value>, EvalError> = expressions.into_iter().map(|e| env.eval_expr(&e)).collect();
+                        let values: Result<Vec<Value>, EvalError> =
+                            expressions.into_iter().map(|e| env.eval_expr(&e)).collect();
                         match values {
                             Ok(values) => {
                                 for v in values {
                                     bag.insert(&v);
                                 }
-                            },
+                            }
                             Err(e) => {
                                 println!("Eval Error: {e:?}");
-                            },
+                            }
                         }
                         println!("OK")
                     }

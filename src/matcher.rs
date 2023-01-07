@@ -20,7 +20,7 @@ pub(crate) enum PatternFail {
     LiteralMismatch,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Matcher<'i, 's, 'v, 'e> {
     pub(crate) env: &'e Environment<'i, 's, 'v>,
     pub(crate) bindings: BTreeMap<Identifier<'i>, Value<'s, 'v>>,
@@ -38,8 +38,9 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
     ) -> Result<(), PatternFail> {
         match &pattern {
             Pattern::Discard => Ok(()),
-            Pattern::Capture(name, pat) => 
-                self.match_pattern(pat, value).and_then(|_| self.match_identifier(name, value)),
+            Pattern::Capture(name, pat) => self
+                .match_pattern(pat, value)
+                .and_then(|_| self.match_identifier(name, value)),
             Pattern::Identifier(name) => self.match_identifier(name, value),
             Pattern::TypedDiscard(t) => {
                 if t == &value.get_type() {
@@ -182,8 +183,10 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
     fn match_literal(&self, literal: &Literal, value: &Value) -> Result<(), PatternFail> {
         let matches = match (literal, value) {
             (Literal::Null, Value::Null) => true,
-            (Literal::String(a), Value::String(b)) => a==b,
-            (Literal::Number(n), Value::Integer(i)) => str::parse::<i64>(n).map(|p| &p == i).unwrap_or(false),
+            (Literal::String(a), Value::String(b)) => a == b,
+            (Literal::Number(n), Value::Integer(i)) => {
+                str::parse::<i64>(n).map(|p| &p == i).unwrap_or(false)
+            }
             (Literal::Boolean(a), Value::Boolean(b)) => a == b,
             (Literal::Type(a), Value::Type(b)) => a == b,
             _ => false,
