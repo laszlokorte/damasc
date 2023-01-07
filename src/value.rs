@@ -43,6 +43,35 @@ impl<'s, 'v> Value<'s, 'v> {
             Value::Type(_) => ValueType::Type,
         }
     }
+
+    pub(crate) fn convert(&self, specified_type: ValueType) -> Option<Value<'s,'v>> {
+        if self.get_type() == specified_type {
+            return Some(self.clone());
+        }
+
+        Some(match (&self, specified_type) {
+            (Value::Null, ValueType::String) => Value::String(Cow::Borrowed("null")),
+            (Value::Null, ValueType::Integer) => Value::Integer(0),
+            (Value::Null, ValueType::Boolean) => Value::Boolean(false),
+            (Value::Null, ValueType::Array) => Value::Array(vec![]),
+            (Value::Null, ValueType::Object) => Value::Object(BTreeMap::new()),
+            (_, ValueType::Type) => Value::Type(self.get_type()),
+            (Value::Type(t), ValueType::String) => Value::String(Cow::Owned(format!("{t}"))),
+            (Value::Object(o), ValueType::Array) => Value::Array(o.values().cloned().collect()),
+            (Value::Object(o), ValueType::Boolean) => Value::Boolean(!o.is_empty()),
+            (Value::Array(a), ValueType::Boolean) => Value::Boolean(!a.is_empty()),
+            (Value::String(s), ValueType::Boolean) => Value::Boolean(!s.is_empty()),
+            (Value::String(s), ValueType::Array) => Value::Array(s.chars().map(|c| Cow::Owned(Value::String(Cow::Owned(c.to_string())))).collect()),
+            (Value::String(_), ValueType::Object) => todo!(),
+            (Value::Integer(i), ValueType::String) => Value::String(Cow::Owned(i.to_string())),
+            (Value::Integer(i), ValueType::Boolean) => Value::Boolean(i != &0),
+            (Value::Boolean(b), ValueType::String) => Value::String(Cow::Owned(b.to_string())),
+            (Value::Boolean(b), ValueType::Integer) => Value::Integer(if *b {1} else{0}),
+            (Value::Array(a), ValueType::Integer) => Value::Integer(a.len() as i64),
+            (Value::Object(o), ValueType::Integer) => Value::Integer(o.len() as i64),
+            _ => return None
+        })
+    }
 }
 
 impl<'s, 'v> std::fmt::Display for Value<'s, 'v> {

@@ -106,6 +106,7 @@ pub(crate) enum BinaryOperator {
     In,
     PowerOf,
     Is,
+    Cast,
 }
 
 #[derive(Clone, Copy, Debug)]

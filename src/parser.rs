@@ -248,20 +248,43 @@ fn literal_type<'v>(input: &str) -> IResult<&str, Literal<'v>> {
 }
 
 fn expression_type_predicate<'v>(input: &str) -> IResult<&str, Expression<'v>> {
-    let (input, init) = expression_numeric_predicative(input)?;
+    let (input, init) = expression_type_additive(input)?;
 
-    let Ok((input, t)) = preceded(ws(tag("is")), expression_numeric_predicative)(input) else {
+    let Ok((input, (op, t))) = tuple((ws(alt((
+        value(BinaryOperator::Is, tag("is")),
+    ))), expression_numeric_predicative))(input) else {
         return Ok((input, init));
     };
 
     Ok((
         input,
         Expression::Binary(BinaryExpression {
-            operator: BinaryOperator::Is,
+            operator: op,
             left: Box::new(init),
             right: Box::new(t),
         }),
     ))
+}
+
+fn expression_type_additive<'v>(input: &str) -> IResult<&str, Expression<'v>> {
+    let (input, init) = expression_numeric_predicative(input)?;
+
+    fold_many0(
+        pair(
+            ws(alt((
+                value(BinaryOperator::Cast, tag("as")),
+            ))),
+            expression_numeric_predicative,
+        ),
+        move || init.clone(),
+        |left, (operator, right)| {
+            Expression::Binary(BinaryExpression {
+                operator,
+                left: Box::new(left),
+                right: Box::new(right),
+            })
+        },
+    )(input)
 }
 
 fn expression_numeric_predicative<'v>(input: &str) -> IResult<&str, Expression<'v>> {

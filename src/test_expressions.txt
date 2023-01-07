@@ -187,3 +187,57 @@ keys({"1": "one", "2":"two", "3":"three"})
 `hello, is ${["you","me"][1]} you are ${["looking","singing"][0]} for?`
 "hello, is me you are looking for?"
 ---
+`I am ${9*9} years old`
+"I am 81 years old"
+---
+true as Integer
+1
+---
+false as Integer
+0
+---
+42 as String
+"42"
+---
+String as String
+"String"
+---
+null as String
+"null"
+---
+null as Boolean
+false
+---
+[7,8,9] as Integer
+3
+---
+{x:23,y:42} as Integer
+2
+---
+"hello" as Boolean
+true
+---
+[7,8,9] as Boolean
+true
+---
+{x:23,y:42} as Boolean
+true
+---
+[] as Boolean
+false
+---
+{} as Boolean
+false
+---
+"" as Boolean
+false
+---
+0 as Boolean
+false
+---
+42 as Boolean
+true
+---
+-23 as Boolean
+true
+---
