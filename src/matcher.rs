@@ -20,6 +20,7 @@ pub(crate) enum PatternFail {
     LiteralMismatch,
 }
 
+#[derive(Clone,Debug)]
 pub(crate) struct Matcher<'i, 's, 'v, 'e> {
     pub(crate) env: &'e Environment<'i, 's, 'v>,
     pub(crate) bindings: BTreeMap<Identifier<'i>, Value<'s, 'v>>,

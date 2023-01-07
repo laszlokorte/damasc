@@ -5,8 +5,8 @@ use gen_iter::gen_iter;
 use crate::{
     env::{Environment, EvalError},
     matcher::Matcher,
-    query::{Predicate, Query},
-    value::Value,
+    query::{Predicate, Query, CrossQuery},
+    value::Value, 
 };
 
 pub(crate) struct ValueBag<'s, 'v> {
@@ -59,6 +59,46 @@ impl<'s, 'v> ValueBag<'s, 'v> {
             }
         })
     }
+
+    pub(crate) fn cross_query<'e, 'x: 'e, 'i>(
+        &'x self,
+        env: &'e Environment<'i, 's, 'v>,
+        query: &'e CrossQuery<'s>,
+    ) -> impl Iterator<Item = Result<Value<'s, 'v>, EvalError>> + 'e {
+        gen_iter!(move {
+            let mut count = 0;
+            'outer: for (idx_a, item_a) in self.items.iter().enumerate() {
+                let mut matcher = Matcher {
+                    env,
+                    bindings: BTreeMap::new(),
+                };
+                if let Ok(()) = matcher.match_pattern(&query.predicate.patterns[0], item_a.as_ref()) {
+                    for (idx_b, item_b) in self.items.iter().enumerate() {
+                        if !query.outer && idx_a == idx_b {
+                            continue;
+                        }
+
+                        let mut matcher = matcher.clone();
+
+                        if let Ok(()) = matcher.match_pattern(&query.predicate.patterns[1], item_b.as_ref()) {
+                            let mut env = env.clone();
+                            matcher.apply_to_env(&mut env);
+                            if let Ok(Value::Boolean(true)) = env.eval_expr(&query.predicate.guard) {
+                                yield env.eval_expr(&query.projection);
+                                count+=1;
+                                if let Some(l) = query.predicate.limit && count >= l {
+                                    break 'outer;
+                                }
+                            }
+                        }
+                    }
+                    
+
+                }
+            }
+        })
+    }
+
 
     pub(crate) fn delete<'e, 'x: 'e, 'i>(
         &'x mut self,

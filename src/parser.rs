@@ -13,7 +13,7 @@ use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::literal::Literal;
 use crate::pattern::*;
-use crate::query::{Predicate, Query};
+use crate::query::{Predicate, Query, CrossQuery, CrossPredicate};
 use crate::statement::Statement;
 use crate::value::ValueType;
 
@@ -624,6 +624,34 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
                     pattern,
                     guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
                     limit: limit.map(|l| l as usize),
+                })
+            },
+        ),
+        map(
+            tuple((
+                ws(alt((value(true, tag(".queryx ")), value(false, tag(".query "))))),
+                tuple((
+                    separated_pair(pattern, ws(tag(";")), pattern),
+                    opt(preceded(ws(tag("into")), expression)),
+                    opt(preceded(ws(tag("where")), expression)),
+                    opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
+                )),
+            )),
+            |(outer, ((p1,p2), proj, guard, limit))| {
+                Statement::CrossQuery(CrossQuery {
+                    outer,
+                    projection: proj.unwrap_or(Expression::Array(vec![
+                        ArrayItem::Single(Expression::Identifier(Identifier{name: Cow::Borrowed("$0")})),
+                        ArrayItem::Single(Expression::Identifier(Identifier{name: Cow::Borrowed("$1")})),
+                    ])),
+                    predicate: CrossPredicate {
+                        patterns: [
+                            Pattern::Capture(Identifier{name: Cow::Borrowed("$0")}, Box::new(p1)),
+                            Pattern::Capture(Identifier{name: Cow::Borrowed("$1")}, Box::new(p2))
+                        ],
+                        guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
+                        limit: limit.map(|l| l as usize),
+                    },
                 })
             },
         ),

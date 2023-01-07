@@ -2,7 +2,7 @@ use std::{borrow::Cow, collections::BTreeMap};
 
 use crate::{expression::*, identifier::Identifier, value::Value, literal::Literal};
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub(crate) struct Environment<'i, 's, 'v> {
     pub(crate) bindings: BTreeMap<Identifier<'i>, Value<'s, 'v>>,
 }

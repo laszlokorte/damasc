@@ -12,3 +12,17 @@ pub(crate) struct Predicate<'s> {
     pub(crate) guard: Expression<'s>,
     pub(crate) limit: Option<usize>,
 }
+
+#[derive(Clone)]
+pub(crate) struct CrossQuery<'s> {
+    pub(crate) outer: bool,
+    pub(crate) predicate: CrossPredicate<'s>,
+    pub(crate) projection: Expression<'s>,
+}
+
+#[derive(Clone)]
+pub(crate) struct CrossPredicate<'s> {
+    pub(crate) patterns: [Pattern<'s>; 2],
+    pub(crate) guard: Expression<'s>,
+    pub(crate) limit: Option<usize>,
+}

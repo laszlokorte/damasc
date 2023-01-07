@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use crate::{
     expression::Expression,
     pattern::Pattern,
-    query::{Predicate, Query},
+    query::{Predicate, Query, CrossQuery},
 };
 
 #[derive(Clone)]
@@ -19,6 +19,7 @@ pub(crate) enum Statement<'a, 'b> {
     Insert(Vec<Expression<'b>>),
     Pop(Expression<'b>),
     Query(Query<'a>),
+    CrossQuery(CrossQuery<'a>),
     Deletion(Predicate<'a>),
     Import(Cow<'b, str>),
     Export(Cow<'b, str>),
