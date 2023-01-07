@@ -180,7 +180,7 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
 
     fn match_literal(&self, literal: &Literal, value: &Value) -> Result<(), PatternFail> {
         let matches = match (literal, value) {
-            (Literal::Null, Value::Null) => todo!(),
+            (Literal::Null, Value::Null) => true,
             (Literal::String(a), Value::String(b)) => a==b,
             (Literal::Number(n), Value::Integer(i)) => str::parse::<i64>(n).map(|p| &p == i).unwrap_or(false),
             (Literal::Boolean(a), Value::Boolean(b)) => a == b,
