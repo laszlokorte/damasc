@@ -20,3 +20,5 @@ true = false
 false = true
 true = !true
 false = !false
+{_x1,_y} = {x1: 23, _y:42}
+[_x,_x] = [1,2]

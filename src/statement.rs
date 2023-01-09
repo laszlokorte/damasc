@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use crate::{
     expression::Expression,
     pattern::Pattern,
-    query::{Predicate, Query}, identifier::Identifier,
+    query::{Predicate, Query}, identifier::Identifier, assignment::Assignment,
 };
 
 #[derive(Clone)]
@@ -16,8 +16,8 @@ pub(crate) enum Statement<'a, 'b> {
     Eval(Expression<'b>),
     Literal(Expression<'b>),
     Pattern(Pattern<'b>),
-    Assign(Pattern<'a>, Expression<'b>),
-    Match(Pattern<'a>, Expression<'b>),
+    Assign(Assignment<'a,'b>),
+    Match(Assignment<'a,'b>),
     Insert(Vec<Expression<'b>>),
     Pop(Expression<'b>),
     Query(Query<'a>),

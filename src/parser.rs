@@ -2,13 +2,14 @@ use std::borrow::Cow;
 
 use nom::branch::alt;
 use nom::bytes::complete::{is_not, tag, take_until};
-use nom::character::complete::{alpha1, char, i64, multispace0};
+use nom::character::complete::{alpha1, char, i64, multispace0, alphanumeric1};
 use nom::combinator::{all_consuming, map, opt, recognize, value, verify};
 use nom::error::ParseError;
-use nom::multi::{fold_many0, many0, many1, separated_list0, separated_list1};
+use nom::multi::{fold_many0, many0, many1, separated_list0, separated_list1, many0_count, many1_count};
 use nom::sequence::{delimited, pair, preceded, separated_pair, terminated, tuple};
 use nom::IResult;
 
+use crate::assignment::Assignment;
 use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::literal::Literal;
@@ -200,10 +201,38 @@ fn no_keyword(input: &str) -> bool {
     !matches!(input, "where" | "into" | "limit")
 }
 
-fn identifier<'v>(input: &str) -> IResult<&str, Identifier<'v>> {
-    map(verify(alpha1, no_keyword), |name: &str| Identifier {
+fn identifier_name(input: &str) -> IResult<&str, &str> {
+    recognize(
+        alt((
+            pair(
+                alpha1,
+                many0_count(alt((alphanumeric1, tag("_"))))
+            ),
+            pair(
+            tag("_"),
+            many1_count(alt((alphanumeric1, tag("_"))))
+            )
+        ))
+      )(input)
+}
+
+fn non_keyword_identifier<'v>(input: &str) -> IResult<&str, Identifier<'v>> {
+    map(verify(identifier_name, no_keyword), |name: &str| Identifier {
         name: Cow::Owned(name.to_string()),
     })(input)
+}
+
+fn raw_identifier<'v>(input: &str) -> IResult<&str, Identifier<'v>> {
+    map(preceded(tag("#"), identifier_name), |name: &str| Identifier {
+        name: Cow::Owned(name.to_string()),
+    })(input)
+}
+
+fn identifier<'v>(input: &str) -> IResult<&str, Identifier<'v>> {
+    alt((
+        raw_identifier,
+        non_keyword_identifier
+    ))(input)
 }
 
 fn expression_logic_additive<'v>(input: &str) -> IResult<&str, Expression<'v>> {
@@ -607,10 +636,10 @@ pub(crate) fn pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
         pattern_atom,
         pattern_capture,
         pattern_array,
-        pattern_typed_discard,
         pattern_typed_identifier,
-        pattern_discard,
+        pattern_typed_discard,
         pattern_identifier,
+        pattern_discard,
         pattern_object,
     ))(input)
 }
@@ -621,14 +650,18 @@ fn assignment<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
             ws(tag("let ")),
             separated_pair(pattern, ws(tag("=")), full_expression),
         ),
-        |(pat, expr)| Statement::Assign(pat, expr),
+        |(pattern, expression)| Statement::Assign(Assignment {
+            pattern,
+            expression,
+        }),
     )(input)
 }
 
 pub(crate) fn try_match<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
     map(
         separated_pair(pattern, ws(tag("=")), full_expression),
-        |(pat, expr)| Statement::Match(pat, expr),
+        |(pattern, expression)| 
+        Statement::Match(Assignment { pattern, expression }),
     )(input)
 }
 
