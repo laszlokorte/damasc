@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use actix_files::Files;
 use actix_web::{get, post, web, App, HttpServer, Responder, HttpResponse};
 use damasc::{env::Environment, statement::Statement, expression::ExpressionSet};
 use serde::Deserialize;
@@ -13,7 +14,7 @@ struct Repl {
 
 
 #[derive(Template)]
-#[template(path = "result.html")]                      
+#[template(path = "result.html.j2")]                      
 struct ResultTemplate<'x> {
     repl: &'x Repl,
     error: Option<String>,
@@ -21,8 +22,9 @@ struct ResultTemplate<'x> {
 }
 
 #[derive(Template)]
-#[template(path = "index.html")]                      
-struct HomeTemplate {
+#[template(path = "index.html.j2")]                      
+struct HomeTemplate<'x> {
+    repl: &'x Repl,
 }
 
 #[post("/")]
@@ -34,11 +36,12 @@ async fn eval(repl: web::Form<Repl>) -> impl Responder {
     match statement(&repl.statement) {
         Ok((_, s)) => {
             let output = match s  {
-                Statement::Clear => {Some("".to_owned())},
-                Statement::Exit => {Some("".to_owned())},
-                Statement::Help => {Some("".to_owned())},
-                Statement::Inspect(_) => {Some("".to_owned())},
-                Statement::Format(_) => {Some("".to_owned())},
+                Statement::Noop => {Some("not yet implemented".to_owned())},
+                Statement::Clear => {Some("not yet implemented".to_owned())},
+                Statement::Exit => {Some("not yet implemented".to_owned())},
+                Statement::Help => {Some("not yet implemented".to_owned())},
+                Statement::Inspect(_) => {Some("not yet implemented".to_owned())},
+                Statement::Format(_) => {Some("not yet implemented".to_owned())},
                 Statement::Eval(ExpressionSet{expressions}) => {
                     Some(expressions.iter().map(|e| {
                         match env.eval_expr(e) {
@@ -49,18 +52,18 @@ async fn eval(repl: web::Form<Repl>) -> impl Responder {
                         }
                     }).collect::<Vec<String>>().join(";"))
                 },
-                Statement::Literal(_) => {Some("".to_owned())},
-                Statement::Pattern(_) => {Some("".to_owned())},
-                Statement::AssignSet(_) => {Some("".to_owned())},
-                Statement::MatchSet(_) => {Some("".to_owned())},
-                Statement::Insert(_) => {Some("".to_owned())},
-                Statement::Pop(_) => {Some("".to_owned())},
-                Statement::Query(_) => {Some("".to_owned())},
-                Statement::Deletion(_) => {Some("".to_owned())},
-                Statement::Import(_) => {Some("".to_owned())},
-                Statement::Export(_) => {Some("".to_owned())},
-                Statement::UseBag(_, _) => {Some("".to_owned())},
-                Statement::TellBag => {Some("".to_owned())},
+                Statement::Literal(_) => {Some("not yet implemented".to_owned())},
+                Statement::Pattern(_) => {Some("not yet implemented".to_owned())},
+                Statement::AssignSet(_) => {Some("not yet implemented".to_owned())},
+                Statement::MatchSet(_) => {Some("not yet implemented".to_owned())},
+                Statement::Insert(_) => {Some("not yet implemented".to_owned())},
+                Statement::Pop(_) => {Some("not yet implemented".to_owned())},
+                Statement::Query(_) => {Some("not yet implemented".to_owned())},
+                Statement::Deletion(_) => {Some("not yet implemented".to_owned())},
+                Statement::Import(_) => {Some("not yet implemented".to_owned())},
+                Statement::Export(_) => {Some("not yet implemented".to_owned())},
+                Statement::UseBag(_, _) => {Some("not yet implemented".to_owned())},
+                Statement::TellBag => {Some("not yet implemented".to_owned())},
             };
             
             ResultTemplate{
@@ -85,13 +88,16 @@ fn template_error(_ : askama::Error) -> HttpResponse {
 
 #[get("/")]
 async fn home() -> impl Responder {
-    HomeTemplate{}.render().map(|s| HttpResponse::Ok().content_type("text/html").body(s)).unwrap_or_else(template_error)
+    HomeTemplate{
+        repl: &Repl{statement:"".to_owned()}
+    }.render().map(|s| HttpResponse::Ok().content_type("text/html").body(s)).unwrap_or_else(template_error)
 }
 
 #[actix_web::main] // or #[tokio::main]
 async fn main() -> std::io::Result<()> {
     let server = HttpServer::new(|| {
         App::new().service(home).service(eval)
+        .service(Files::new("/", "./static/root/").index_file("index.html"))
     })
     .bind(("127.0.0.1", 8080))?;
 

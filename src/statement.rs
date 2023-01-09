@@ -10,6 +10,7 @@ use crate::{
 
 #[derive(Clone)]
 pub enum Statement<'a, 'b> {
+    Noop,
     Clear,
     Exit,
     Help,

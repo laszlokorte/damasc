@@ -4,14 +4,15 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/style.css">
     <title>Damasc</title>
 </head>
 <body>
-    <h2>Damasc</h2>
+    <div class="app">
+        <h1 class="app-titel"><a class="inherit" href="/">Damasc</a></h1>
 
-    <form action="." method="post">
-        <input autocomplete="off" name="statement" type="text">
-        <button>Submit</button>
-    </form>
+        {% block body %}
+        {% endblock %}
+    </div>
 </body>
 </html>

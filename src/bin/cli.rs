@@ -65,6 +65,9 @@ pub(crate) fn main() -> rustyline::Result<()> {
                 };
 
                 match stmt {
+                    Statement::Noop => {
+                        env.clear();
+                    }
                     Statement::Clear => {
                         env.clear();
                     }

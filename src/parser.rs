@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use nom::branch::alt;
 use nom::bytes::complete::{is_not, tag, take_until};
-use nom::character::complete::{alpha1, alphanumeric1, char, i64, multispace0};
+use nom::character::complete::{alpha1, alphanumeric1, char, i64, multispace0, space0};
 use nom::combinator::{all_consuming, map, opt, recognize, value, verify};
 use nom::error::ParseError;
 use nom::multi::{
@@ -840,5 +840,6 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
             all_consuming(try_match_multi),
         )),
         all_consuming(map(expression_multi, Statement::Eval)),
+        value(Statement::Noop, all_consuming(space0)),
     )))(input)
 }

@@ -1,0 +1,65 @@
+body {
+    background: #fafafa;
+    font-family: monospace;
+}
+
+.app-titel {
+    font-size: 1.4em;
+}
+
+.inherit {
+    color: inherit;
+}
+
+.app {
+    max-width: 70ch;
+    margin: auto;
+}
+
+.repl-line {
+    display: grid;
+    grid-template-columns: [input-start prompt-start] 3ch [prompt-end] 1fr [button-start] 10ch [input-end button-end];
+    grid-template-rows: [input-start button-start prompt-start] 1fr [input-end button-end prompt-end];
+    background-color: #222;
+    color: #fff;
+    gap: 1ch;
+    font-size: 1.4em;
+}
+
+.repl-input {
+    flex-grow: 1;
+    background-color: inherit;
+    color: inherit;
+    border: none;
+    font-family: monospace;
+    padding: 1ch;
+    padding-right: 10ch;
+    padding-left: 3ch;
+    grid-area: input;
+    font-size: inherit;
+}
+
+.repl-prompt {
+    grid-area: prompt;
+    z-index: 2;
+    justify-self: center;
+    align-self: center;
+    font-size: 0.6em;
+}
+
+.repl-button {
+    background-color: #111;
+    color: inherit;
+    border: none;
+    font-size: 1em;
+    font-family: monospace;
+    padding: 0.5ch;
+    font-size: 0.8em;
+    cursor: pointer;
+    grid-area: button;
+}
+
+.repl-input:focus-visible {
+    outline: none;
+    outline: 2px solid #ab0;
+}
