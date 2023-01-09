@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use crate::value::ValueType;
 
 #[derive(Clone, Debug)]
-pub(crate) enum Literal<'s> {
+pub enum Literal<'s> {
     Null,
     String(Cow<'s, str>),
     Number(Cow<'s, str>),

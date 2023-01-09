@@ -4,7 +4,7 @@ use crate::literal::Literal;
 use crate::value::ValueType;
 
 #[derive(Clone, Debug)]
-pub(crate) enum Pattern<'s> {
+pub enum Pattern<'s> {
     Discard,
     Capture(Identifier<'s>, Box<Pattern<'s>>),
     Identifier(Identifier<'s>),
@@ -81,29 +81,29 @@ impl<'a> std::fmt::Display for Pattern<'a> {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum Rest<'s> {
+pub enum Rest<'s> {
     Exact,
     Discard,
     Collect(Box<Pattern<'s>>),
 }
 
-pub(crate) type ObjectPattern<'a> = Vec<ObjectPropertyPattern<'a>>;
-pub(crate) type ArrayPattern<'a> = Vec<ArrayPatternItem<'a>>;
+pub type ObjectPattern<'a> = Vec<ObjectPropertyPattern<'a>>;
+pub type ArrayPattern<'a> = Vec<ArrayPatternItem<'a>>;
 
 #[derive(Clone, Debug)]
-pub(crate) enum ArrayPatternItem<'a> {
+pub enum ArrayPatternItem<'a> {
     Pattern(Pattern<'a>),
     //Expression(Expression<'a>),
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum ObjectPropertyPattern<'a> {
+pub enum ObjectPropertyPattern<'a> {
     Single(Identifier<'a>),
     Match(PropertyPattern<'a>),
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct PropertyPattern<'a> {
-    pub(crate) key: PropertyKey<'a>,
-    pub(crate) value: Pattern<'a>,
+pub struct PropertyPattern<'a> {
+    pub key: PropertyKey<'a>,
+    pub value: Pattern<'a>,
 }

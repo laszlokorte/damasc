@@ -8,7 +8,7 @@ use crate::pattern::*;
 use crate::{env::Environment, identifier::Identifier, value::Value, value::ValueObjectMap};
 
 #[derive(Debug)]
-pub(crate) enum PatternFail {
+pub enum PatternFail {
     IdentifierConflict,
     ArrayMissmatch,
     ArrayLengthMismatch,
@@ -21,17 +21,17 @@ pub(crate) enum PatternFail {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Matcher<'i, 's, 'v, 'e> {
-    pub(crate) env: &'e Environment<'i, 's, 'v>,
-    pub(crate) bindings: BTreeMap<Identifier<'i>, Value<'s, 'v>>,
+pub struct Matcher<'i, 's, 'v, 'e> {
+    pub env: &'e Environment<'i, 's, 'v>,
+    pub bindings: BTreeMap<Identifier<'i>, Value<'s, 'v>>,
 }
 
 impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
-    pub(crate) fn apply_to_env<'x>(&mut self, env: &'x mut Environment<'i, 's, 'v>) {
+    pub fn apply_to_env<'x>(&mut self, env: &'x mut Environment<'i, 's, 'v>) {
         env.bindings.append(&mut self.bindings);
     }
 
-    pub(crate) fn match_pattern<'x>(
+    pub fn match_pattern<'x>(
         &'x mut self,
         pattern: &'x Pattern<'s>,
         value: &Value<'s, 'v>,
@@ -176,7 +176,7 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
         }
     }
 
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.bindings.clear();
     }
 
@@ -199,7 +199,7 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
         }
     }
 
-    pub(crate) fn make_env(&mut self) -> Environment<'i, 's, 'v> {
+    pub fn make_env(&mut self) -> Environment<'i, 's, 'v> {
         let mut new_env = self.env.clone();
 
         self.apply_to_env(&mut new_env);

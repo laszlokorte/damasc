@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub(crate) enum Statement<'a, 'b> {
+pub enum Statement<'a, 'b> {
     Clear,
     Exit,
     Help,

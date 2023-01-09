@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub(crate) enum Value<'s, 'v> {
+pub enum Value<'s, 'v> {
     Null,
     String(Cow<'s, str>),
     Integer(i64),
@@ -15,7 +15,7 @@ pub(crate) enum Value<'s, 'v> {
 pub(crate) type ValueObjectMap<'s, 'v> = BTreeMap<Cow<'s, str>, Cow<'v, Value<'s, 'v>>>;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub(crate) enum ValueType {
+pub enum ValueType {
     Null,
     String,
     Integer,

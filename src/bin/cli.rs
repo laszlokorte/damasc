@@ -1,77 +1,27 @@
-#![feature(iter_array_chunks)]
-#![feature(assert_matches)]
 #![feature(map_try_insert)]
-#![feature(let_chains)]
-#![feature(generators)]
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::{self, BufRead, LineWriter};
-
-use literal::Literal;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
-mod assignment;
-mod bag;
-mod env;
-mod expression;
-mod identifier;
-mod literal;
-mod matcher;
-mod parser;
-mod pattern;
-mod query;
-mod statement;
-mod typed_bag;
-mod value;
+use damasc::typed_bag::TypedBag;
+use damasc::env::{Environment, EvalError};
+use damasc::expression::*;
+use damasc::identifier::Identifier;
+use damasc::matcher::Matcher;
+use damasc::parser::{full_expression, statement, pattern};
+use damasc::statement::Statement;
+use damasc::value::Value;
 
-use env::{Environment, EvalError};
-use expression::*;
-use identifier::Identifier;
-use matcher::Matcher;
-use parser::{full_expression, statement};
-use statement::Statement;
-use value::Value;
-
-use crate::assignment::Assignment;
-use crate::query::Predicate;
-use crate::typed_bag::TypedBag;
-
-impl<'s, 'v> Value<'s, 'v> {
-    pub(crate) fn to_expression(&self) -> Expression<'s> {
-        match self {
-            Value::Null => Expression::Literal(Literal::Null),
-            Value::String(s) => Expression::Literal(Literal::String(s.clone())),
-            Value::Integer(i) => Expression::Literal(Literal::Number(Cow::Owned(i.to_string()))),
-            Value::Boolean(b) => Expression::Literal(Literal::Boolean(*b)),
-            Value::Array(a) => Expression::Array(
-                a.iter()
-                    .map(|v| v.to_expression())
-                    .map(ArrayItem::Single)
-                    .collect(),
-            ),
-            Value::Object(o) => Expression::Object(
-                o.iter()
-                    .map(|(k, v)| {
-                        ObjectProperty::Property(Property {
-                            key: PropertyKey::Identifier(Identifier {
-                                name: Cow::Owned(k.to_string()),
-                            }),
-                            value: v.to_expression(),
-                        })
-                    })
-                    .collect(),
-            ),
-            Value::Type(t) => Expression::Literal(Literal::Type(*t)),
-        }
-    }
-}
+use damasc::assignment::Assignment;
+use damasc::query::Predicate;
 
 const INITIAL_BAG_NAME: &str = "init";
 
-fn main() -> rustyline::Result<()> {
+pub(crate) fn main() -> rustyline::Result<()> {
     let mut env = Environment {
         bindings: BTreeMap::new(),
     };
@@ -82,8 +32,8 @@ fn main() -> rustyline::Result<()> {
     let mut bags = HashMap::<Identifier, TypedBag>::new();
     bags.insert(
         current_bag_name.clone(),
-        crate::typed_bag::TypedBag::new(Predicate {
-            pattern: crate::parser::pattern("_").unwrap().1,
+        TypedBag::new(Predicate {
+            pattern: pattern("_").unwrap().1,
             guard: full_expression("true").unwrap().1,
             limit: None,
         }),
@@ -133,8 +83,8 @@ fn main() -> rustyline::Result<()> {
                         if bags
                             .try_insert(
                                 current_bag_name.clone(),
-                                crate::typed_bag::TypedBag::new(pred.unwrap_or(Predicate {
-                                    pattern: crate::parser::pattern("_").unwrap().1,
+                                TypedBag::new(pred.unwrap_or(Predicate {
+                                    pattern: pattern("_").unwrap().1,
                                     guard: full_expression("true").unwrap().1,
                                     limit: None,
                                 })),
@@ -390,194 +340,4 @@ fn main() -> rustyline::Result<()> {
         }
     }
     rl.save_history("history.txt")
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::{
-        assignment::AssignmentError,
-        parser::{expression_multi, try_match_multi},
-    };
-    use std::assert_matches::assert_matches;
-
-    #[test]
-    fn test_expressions() {
-        let mut tests = include_str!("test_expressions.txt").lines().array_chunks();
-        let env = Environment {
-            bindings: BTreeMap::new(),
-        };
-
-        for [expr, result, sep] in &mut tests {
-            assert_eq!("---", sep, "Expression pairs are separated by --- line");
-            let Ok((_, parsed)) = expression_multi(expr) else {
-                unreachable!("Expression set A can be parsed, {expr}");
-            };
-            let Ok((_, value)) = expression_multi(result) else {
-                unreachable!("Expression set B can be parsed, {result}");
-            };
-
-            for (a, b) in std::iter::zip(parsed.expressions, value.expressions) {
-                let evaled = env.eval_expr(&a);
-                let valued_evaled = env.eval_expr(&b);
-
-                assert!(evaled.is_ok(), "Expression A can be evaluated");
-                assert!(valued_evaled.is_ok(), "Expression B can be parsed");
-
-                assert_eq!(
-                    evaled.unwrap(),
-                    valued_evaled.unwrap(),
-                    "Expression A and B evaluate to the same value"
-                );
-            }
-        }
-
-        let Some(e) = tests.into_remainder() else {
-            unreachable!("Number of Test Expression lines are multiple of 3");
-        };
-        assert_eq!(
-            e.count(),
-            0,
-            "Last expression pair is followed terminated by ---"
-        );
-    }
-
-    #[test]
-    fn test_patterns() {
-        let tests = include_str!("test_patterns.txt").lines();
-        let env = Environment {
-            bindings: BTreeMap::new(),
-        };
-
-        for case in tests {
-            let mut matcher = Matcher {
-                env: &env,
-                bindings: BTreeMap::new(),
-            };
-
-            let Ok((_, Statement::MatchSet(mut assignment_set))) = try_match_multi(case) else {
-                unreachable!("Test Pattern and Expression can be parsed: {case}");
-            };
-
-            if assignment_set.sort_topological(env.identifiers()).is_err() {
-                unreachable!("Topological Error in: {case}");
-            }
-
-            for Assignment {
-                pattern,
-                expression,
-            } in assignment_set.assignments
-            {
-                let Ok(value) = env.eval_expr(&expression) else {
-                    unreachable!("TestExpression can be evaluated: {case}");
-                };
-
-                assert_matches!(
-                    matcher.match_pattern(&pattern, &value),
-                    Ok(_),
-                    "Test Expression Value matches the test pattern: {case}"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn test_negative_patterns() {
-        let tests = include_str!("test_negative_patterns.txt").lines();
-        let env = Environment {
-            bindings: BTreeMap::new(),
-        };
-
-        for case in tests {
-            let mut matcher = Matcher {
-                env: &env,
-                bindings: BTreeMap::new(),
-            };
-            let Ok((_, Statement::MatchSet(mut assignment_set))) = try_match_multi(case) else {
-                unreachable!("Test Pattern and Expression can be parsed: {case}");
-            };
-
-            if assignment_set.sort_topological(env.identifiers()).is_err() {
-                unreachable!("Topological Error in: {case}");
-            }
-
-            for Assignment {
-                pattern,
-                expression,
-            } in assignment_set.assignments
-            {
-                let Ok(value) = env.eval_expr(&expression) else {
-                    unreachable!("TestExpression can be evaluated: {case}");
-                };
-
-                assert_matches!(
-                    matcher.match_pattern(&pattern, &value),
-                    Err(_),
-                    "Test Expression Value does not match the test pattern: {case}"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn test_topological_assignments() {
-        let tests = include_str!("test_topological.txt").lines();
-        let env = Environment {
-            bindings: BTreeMap::new(),
-        };
-
-        for case in tests {
-            let mut tmp_env = env.clone();
-            let mut matcher = Matcher {
-                env: &tmp_env.clone(),
-                bindings: BTreeMap::new(),
-            };
-            let Ok((_, Statement::MatchSet(mut assignment_set))) = try_match_multi(case) else {
-                unreachable!("Test Pattern and Expression can be parsed: {case}");
-            };
-
-            if assignment_set
-                .sort_topological(tmp_env.identifiers())
-                .is_err()
-            {
-                unreachable!("Topological Error in: {case}");
-            }
-
-            for Assignment {
-                pattern,
-                expression,
-            } in assignment_set.assignments
-            {
-                let Ok(value) = tmp_env.eval_expr(&expression) else {
-                    unreachable!("TestExpression can be evaluated: {case}");
-                };
-
-                assert_matches!(
-                    matcher.match_pattern(&pattern, &value),
-                    Ok(_),
-                    "Test Expression Value matches the test pattern: {case}"
-                );
-
-                matcher.apply_to_env(&mut tmp_env);
-            }
-        }
-    }
-    #[test]
-    fn test_topological_fail() {
-        let tests = include_str!("test_topological_fail.txt").lines();
-        let env = Environment {
-            bindings: BTreeMap::new(),
-        };
-
-        for case in tests {
-            let Ok((_, Statement::MatchSet(mut assignment_set))) = try_match_multi(case) else {
-                unreachable!("Test Pattern and Expression can be parsed: {case}");
-            };
-
-            assert_matches!(
-                assignment_set.sort_topological(env.identifiers()),
-                Err(AssignmentError::TopologicalConflict(_))
-            )
-        }
-    }
 }

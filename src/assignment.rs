@@ -10,18 +10,18 @@ use crate::pattern::{ArrayPatternItem, ObjectPropertyPattern, Pattern, PropertyP
 use gen_iter::gen_iter;
 
 #[derive(Clone, Debug)]
-pub(crate) struct Assignment<'a, 'b> {
-    pub(crate) pattern: Pattern<'a>,
-    pub(crate) expression: Expression<'b>,
+pub struct Assignment<'a, 'b> {
+    pub pattern: Pattern<'a>,
+    pub expression: Expression<'b>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct AssignmentSet<'a, 'b> {
-    pub(crate) assignments: Vec<Assignment<'a, 'b>>,
+pub struct AssignmentSet<'a, 'b> {
+    pub assignments: Vec<Assignment<'a, 'b>>,
 }
 
 #[derive(Debug)]
-pub(crate) enum AssignmentError<'s> {
+pub enum AssignmentError<'s> {
     TopologicalConflict(HashSet<Identifier<'s>>),
 }
 
@@ -43,7 +43,7 @@ impl<'s> std::fmt::Display for AssignmentError<'s> {
 }
 
 impl<'a, 'b> AssignmentSet<'a, 'b> {
-    pub(crate) fn sort_topological<'c>(
+    pub fn sort_topological<'c>(
         &'c mut self,
         external_ids: HashSet<&Identifier>,
     ) -> Result<(), AssignmentError<'c>> {

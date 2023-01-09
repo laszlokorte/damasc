@@ -501,11 +501,11 @@ fn expression_bag<'v>(input: &str) -> IResult<&str, std::vec::Vec<Expression<'v>
     separated_list1(ws(tag(";")), expression)(input)
 }
 
-pub(crate) fn full_expression<'v>(input: &str) -> IResult<&str, Expression<'v>> {
+pub fn full_expression<'v>(input: &str) -> IResult<&str, Expression<'v>> {
     all_consuming(expression)(input)
 }
 
-pub(crate) fn expression_multi<'v>(input: &str) -> IResult<&str, ExpressionSet<'v>> {
+pub fn expression_multi<'v>(input: &str) -> IResult<&str, ExpressionSet<'v>> {
     map(separated_list1(ws(tag(";")), expression), |expressions| {
         ExpressionSet { expressions }
     })(input)
@@ -632,7 +632,7 @@ fn pattern_atom<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     )(input)
 }
 
-pub(crate) fn pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
+pub fn pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     alt((
         pattern_atom,
         pattern_capture,
@@ -664,7 +664,7 @@ pub(crate) fn assignment_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'
     )(input)
 }
 
-pub(crate) fn try_match_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
+pub fn try_match_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
     map(
         separated_list1(
             ws(tag(";")),
@@ -684,7 +684,7 @@ fn filename(input: &str) -> IResult<&str, &str> {
     recognize(many1(alt((alpha1, tag("_")))))(input)
 }
 
-pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
+pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
     all_consuming(alt((
         all_consuming(value(Statement::Clear, tag(".clear"))),
         all_consuming(value(

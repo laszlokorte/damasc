@@ -4,7 +4,7 @@ use crate::identifier::Identifier;
 use crate::literal::Literal;
 
 #[derive(Clone, Debug)]
-pub(crate) enum Expression<'s> {
+pub enum Expression<'s> {
     Array(ArrayExpression<'s>),
     Binary(BinaryExpression<'s>),
     Identifier(Identifier<'s>),
@@ -24,79 +24,79 @@ impl std::fmt::Display for Expression<'_> {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct ExpressionSet<'s> {
-    pub(crate) expressions: Vec<Expression<'s>>,
+pub struct ExpressionSet<'s> {
+    pub expressions: Vec<Expression<'s>>,
 }
 
 type ArrayExpression<'a> = Vec<ArrayItem<'a>>;
 
 #[derive(Clone, Debug)]
-pub(crate) enum ArrayItem<'a> {
+pub enum ArrayItem<'a> {
     Single(Expression<'a>),
     Spread(Expression<'a>),
 }
 
-pub(crate) type ObjectExpression<'a> = Vec<ObjectProperty<'a>>;
+pub type ObjectExpression<'a> = Vec<ObjectProperty<'a>>;
 
 #[derive(Clone, Debug)]
-pub(crate) enum ObjectProperty<'a> {
+pub enum ObjectProperty<'a> {
     Single(Identifier<'a>),
     Property(Property<'a>),
     Spread(Expression<'a>),
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Property<'a> {
-    pub(crate) key: PropertyKey<'a>,
-    pub(crate) value: Expression<'a>,
+pub struct Property<'a> {
+    pub key: PropertyKey<'a>,
+    pub value: Expression<'a>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum PropertyKey<'a> {
+pub enum PropertyKey<'a> {
     Identifier(Identifier<'a>),
     Expression(Expression<'a>),
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct CallExpression<'a> {
-    pub(crate) function: Identifier<'a>,
-    pub(crate) argument: Box<Expression<'a>>,
+pub struct CallExpression<'a> {
+    pub function: Identifier<'a>,
+    pub argument: Box<Expression<'a>>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct StringTemplate<'a> {
-    pub(crate) parts: Vec<StringTemplatePart<'a>>,
-    pub(crate) suffix: Cow<'a, str>,
+pub struct StringTemplate<'a> {
+    pub parts: Vec<StringTemplatePart<'a>>,
+    pub suffix: Cow<'a, str>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct StringTemplatePart<'a> {
-    pub(crate) fixed_start: Cow<'a, str>,
-    pub(crate) dynamic_end: Box<Expression<'a>>,
+pub struct StringTemplatePart<'a> {
+    pub fixed_start: Cow<'a, str>,
+    pub dynamic_end: Box<Expression<'a>>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct UnaryExpression<'a> {
-    pub(crate) operator: UnaryOperator,
-    pub(crate) argument: Box<Expression<'a>>,
+pub struct UnaryExpression<'a> {
+    pub operator: UnaryOperator,
+    pub argument: Box<Expression<'a>>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct BinaryExpression<'a> {
-    pub(crate) operator: BinaryOperator,
-    pub(crate) left: Box<Expression<'a>>,
-    pub(crate) right: Box<Expression<'a>>,
+pub struct BinaryExpression<'a> {
+    pub operator: BinaryOperator,
+    pub left: Box<Expression<'a>>,
+    pub right: Box<Expression<'a>>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct LogicalExpression<'a> {
-    pub(crate) operator: LogicalOperator,
-    pub(crate) left: Box<Expression<'a>>,
-    pub(crate) right: Box<Expression<'a>>,
+pub struct LogicalExpression<'a> {
+    pub operator: LogicalOperator,
+    pub left: Box<Expression<'a>>,
+    pub right: Box<Expression<'a>>,
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum BinaryOperator {
+pub enum BinaryOperator {
     StrictEqual,
     StrictNotEqual,
     LessThan,
@@ -115,13 +115,13 @@ pub(crate) enum BinaryOperator {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum LogicalOperator {
+pub enum LogicalOperator {
     Or,
     And,
 }
 
 impl LogicalOperator {
-    pub(crate) fn short_circuit_on(&self, b: bool) -> bool {
+    pub fn short_circuit_on(&self, b: bool) -> bool {
         match self {
             Self::Or => b,
             Self::And => !b,
@@ -130,14 +130,14 @@ impl LogicalOperator {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum UnaryOperator {
+pub enum UnaryOperator {
     Minus,
     Plus,
     Not,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct MemberExpression<'a> {
-    pub(crate) object: Box<Expression<'a>>,
-    pub(crate) property: Box<Expression<'a>>,
+pub struct MemberExpression<'a> {
+    pub object: Box<Expression<'a>>,
+    pub property: Box<Expression<'a>>,
 }

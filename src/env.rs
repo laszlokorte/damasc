@@ -8,12 +8,12 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
-pub(crate) struct Environment<'i, 's, 'v> {
-    pub(crate) bindings: BTreeMap<Identifier<'i>, Value<'s, 'v>>,
+pub struct Environment<'i, 's, 'v> {
+    pub bindings: BTreeMap<Identifier<'i>, Value<'s, 'v>>,
 }
 
 #[derive(Debug)]
-pub(crate) enum EvalError {
+pub enum EvalError {
     KindError,
     TypeError,
     UnknownIdentifier,
@@ -26,11 +26,11 @@ pub(crate) enum EvalError {
 }
 
 impl<'i, 's, 'v> Environment<'i, 's, 'v> {
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.bindings.clear();
     }
 
-    pub(crate) fn eval_expr<'x>(
+    pub fn eval_expr<'x>(
         &self,
         expression: &'x Expression<'x>,
     ) -> Result<Value<'s, 'v>, EvalError> {
@@ -460,7 +460,7 @@ impl<'i, 's, 'v> Environment<'i, 's, 'v> {
         return Ok(Value::String(Cow::Owned(joined.join(""))));
     }
 
-    pub(crate) fn identifiers(&self) -> std::collections::HashSet<&Identifier> {
+    pub fn identifiers(&self) -> std::collections::HashSet<&Identifier> {
         self.bindings.keys().collect()
     }
 }

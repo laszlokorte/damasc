@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub(crate) struct Identifier<'a> {
-    pub(crate) name: Cow<'a, str>,
+pub struct Identifier<'a> {
+    pub name: Cow<'a, str>,
 }
 
 impl std::fmt::Display for Identifier<'_> {

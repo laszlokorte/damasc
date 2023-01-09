@@ -59,7 +59,7 @@ It is made to be embeded as a sub language into other more powerful systems.
 Use cargo to start the REPL:
 
 ```sh
-$ cargo run
+$ cargo run --bin cli
 ```
 Inside the REPL you can type simple expressions and hit <kbd>enter</kbd> to evaluate. For example:
 
