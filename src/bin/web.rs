@@ -42,6 +42,14 @@ async fn eval(
 ) -> impl Responder {
     let mut repl_state = env_mutex.lock().unwrap();
 
+    if repl.statement.len() > 500 {
+        return HttpResponse::Ok().content_type("text/html").body(ResultTemplate {
+            error: Some("Input length is limited to 500 characters".to_string()),
+            repl: &repl,
+            output: None,
+        }.render().unwrap());
+    }
+
     match statement(&repl.statement) {
         Ok((_, stmt)) => {
             let deny = matches!(&stmt, Statement::UseBag(..) | Statement::Import(..) | Statement::Export(..));
