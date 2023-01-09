@@ -1,9 +1,11 @@
 use std::borrow::Cow;
 
 use crate::{
+    assignment::AssignmentSet,
     expression::{Expression, ExpressionSet},
+    identifier::Identifier,
     pattern::Pattern,
-    query::{Predicate, Query}, identifier::Identifier, assignment::{AssignmentSet},
+    query::{Predicate, Query},
 };
 
 #[derive(Clone)]
@@ -16,8 +18,8 @@ pub(crate) enum Statement<'a, 'b> {
     Eval(ExpressionSet<'b>),
     Literal(Expression<'b>),
     Pattern(Pattern<'b>),
-    AssignSet(AssignmentSet<'a,'b>),
-    MatchSet(AssignmentSet<'a,'b>),
+    AssignSet(AssignmentSet<'a, 'b>),
+    MatchSet(AssignmentSet<'a, 'b>),
     Insert(Vec<Expression<'b>>),
     Pop(Expression<'b>),
     Query(Query<'a>),

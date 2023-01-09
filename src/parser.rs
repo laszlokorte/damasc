@@ -2,10 +2,12 @@ use std::borrow::Cow;
 
 use nom::branch::alt;
 use nom::bytes::complete::{is_not, tag, take_until};
-use nom::character::complete::{alpha1, char, i64, multispace0, alphanumeric1};
+use nom::character::complete::{alpha1, alphanumeric1, char, i64, multispace0};
 use nom::combinator::{all_consuming, map, opt, recognize, value, verify};
 use nom::error::ParseError;
-use nom::multi::{fold_many0, many0, many1, separated_list0, separated_list1, many0_count, many1_count};
+use nom::multi::{
+    fold_many0, many0, many0_count, many1, many1_count, separated_list0, separated_list1,
+};
 use nom::sequence::{delimited, pair, preceded, separated_pair, terminated, tuple};
 use nom::IResult;
 
@@ -202,37 +204,30 @@ fn no_keyword(input: &str) -> bool {
 }
 
 fn identifier_name(input: &str) -> IResult<&str, &str> {
-    recognize(
-        alt((
-            pair(
-                alpha1,
-                many0_count(alt((alphanumeric1, tag("_"))))
-            ),
-            pair(
-            tag("_"),
-            many1_count(alt((alphanumeric1, tag("_"))))
-            )
-        ))
-      )(input)
+    recognize(alt((
+        pair(alpha1, many0_count(alt((alphanumeric1, tag("_"))))),
+        pair(tag("_"), many1_count(alt((alphanumeric1, tag("_"))))),
+    )))(input)
 }
 
 fn non_keyword_identifier<'v>(input: &str) -> IResult<&str, Identifier<'v>> {
-    map(verify(identifier_name, no_keyword), |name: &str| Identifier {
-        name: Cow::Owned(name.to_string()),
+    map(verify(identifier_name, no_keyword), |name: &str| {
+        Identifier {
+            name: Cow::Owned(name.to_string()),
+        }
     })(input)
 }
 
 fn raw_identifier<'v>(input: &str) -> IResult<&str, Identifier<'v>> {
-    map(preceded(tag("#"), identifier_name), |name: &str| Identifier {
-        name: Cow::Owned(name.to_string()),
+    map(preceded(tag("#"), identifier_name), |name: &str| {
+        Identifier {
+            name: Cow::Owned(name.to_string()),
+        }
     })(input)
 }
 
 fn identifier<'v>(input: &str) -> IResult<&str, Identifier<'v>> {
-    alt((
-        raw_identifier,
-        non_keyword_identifier
-    ))(input)
+    alt((raw_identifier, non_keyword_identifier))(input)
 }
 
 fn expression_logic_additive<'v>(input: &str) -> IResult<&str, Expression<'v>> {
@@ -511,10 +506,9 @@ pub(crate) fn full_expression<'v>(input: &str) -> IResult<&str, Expression<'v>> 
 }
 
 pub(crate) fn expression_multi<'v>(input: &str) -> IResult<&str, ExpressionSet<'v>> {
-    map(
-        separated_list1(ws(tag(";")), expression),
-        |expressions| ExpressionSet{ expressions }
-    )(input)
+    map(separated_list1(ws(tag(";")), expression), |expressions| {
+        ExpressionSet { expressions }
+    })(input)
 }
 
 fn full_pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
@@ -652,25 +646,38 @@ pub(crate) fn pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
 }
 
 pub(crate) fn assignment_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
-    map(preceded(
-        ws(tag("let ")),
-        separated_list1(ws(tag(";")), 
-        map(separated_pair(pattern, ws(tag("=")), expression),
-        |(pattern, expression)| Assignment {
-            pattern,
-            expression,
-        })),
-    ), |assignments| Statement::AssignSet(AssignmentSet{assignments}))(input)
+    map(
+        preceded(
+            ws(tag("let ")),
+            separated_list1(
+                ws(tag(";")),
+                map(
+                    separated_pair(pattern, ws(tag("=")), expression),
+                    |(pattern, expression)| Assignment {
+                        pattern,
+                        expression,
+                    },
+                ),
+            ),
+        ),
+        |assignments| Statement::AssignSet(AssignmentSet { assignments }),
+    )(input)
 }
 
 pub(crate) fn try_match_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
     map(
-        separated_list1(ws(tag(";")), map(separated_pair(pattern, ws(tag("=")), expression),
-        |(pattern, expression)| Assignment {
-            pattern,
-            expression,
-        }),
-    ), |assignments| Statement::MatchSet(AssignmentSet{assignments}))(input)
+        separated_list1(
+            ws(tag(";")),
+            map(
+                separated_pair(pattern, ws(tag("=")), expression),
+                |(pattern, expression)| Assignment {
+                    pattern,
+                    expression,
+                },
+            ),
+        ),
+        |assignments| Statement::MatchSet(AssignmentSet { assignments }),
+    )(input)
 }
 
 fn filename(input: &str) -> IResult<&str, &str> {
@@ -680,7 +687,10 @@ fn filename(input: &str) -> IResult<&str, &str> {
 pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
     all_consuming(alt((
         all_consuming(value(Statement::Clear, tag(".clear"))),
-        all_consuming(value(Statement::Exit, ws(alt((tag(".exit"), tag(".quit")))))),
+        all_consuming(value(
+            Statement::Exit,
+            ws(alt((tag(".exit"), tag(".quit")))),
+        )),
         all_consuming(value(Statement::Help, ws(alt((tag(".help"), tag(".h")))))),
         map(preceded(ws(tag(".load ")), filename), |f| {
             Statement::Import(Cow::Owned(f.into()))
@@ -802,21 +812,28 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
         value(Statement::TellBag, all_consuming(ws(tag(".bag")))),
         map(
             preceded(ws(tag(".bag ")), all_consuming(ws(identifier))),
-            |p| Statement::UseBag(p,None),
+            |p| Statement::UseBag(p, None),
         ),
-
         map(
-            preceded(ws(tag(".bag ")), tuple((
-                identifier,
-                preceded(ws(tag("as")), pattern),
-                opt(preceded(ws(tag("where")), expression)),
-                opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
-            ))),
-            |(name, pattern, guard, limit)| Statement::UseBag(name,Some(Predicate {
-                pattern,
-                guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
-                limit: limit.map(|l| l as usize),
-            })),
+            preceded(
+                ws(tag(".bag ")),
+                tuple((
+                    identifier,
+                    preceded(ws(tag("as")), pattern),
+                    opt(preceded(ws(tag("where")), expression)),
+                    opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
+                )),
+            ),
+            |(name, pattern, guard, limit)| {
+                Statement::UseBag(
+                    name,
+                    Some(Predicate {
+                        pattern,
+                        guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
+                        limit: limit.map(|l| l as usize),
+                    }),
+                )
+            },
         ),
         alt((
             all_consuming(assignment_multi),

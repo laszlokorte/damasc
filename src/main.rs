@@ -13,8 +13,8 @@ use literal::Literal;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
+mod assignment;
 mod bag;
-mod typed_bag;
 mod env;
 mod expression;
 mod identifier;
@@ -24,8 +24,8 @@ mod parser;
 mod pattern;
 mod query;
 mod statement;
+mod typed_bag;
 mod value;
-mod assignment;
 
 use env::{Environment, EvalError};
 use expression::*;
@@ -35,7 +35,7 @@ use parser::{full_expression, statement};
 use statement::Statement;
 use value::Value;
 
-use crate::assignment::{Assignment};
+use crate::assignment::Assignment;
 use crate::query::Predicate;
 use crate::typed_bag::TypedBag;
 
@@ -69,20 +69,25 @@ impl<'s, 'v> Value<'s, 'v> {
     }
 }
 
-const INITIAL_BAG_NAME : &str = "init";
+const INITIAL_BAG_NAME: &str = "init";
 
 fn main() -> rustyline::Result<()> {
     let mut env = Environment {
         bindings: BTreeMap::new(),
     };
 
-    let mut current_bag_name = Identifier { name: Cow::Borrowed(INITIAL_BAG_NAME) };
+    let mut current_bag_name = Identifier {
+        name: Cow::Borrowed(INITIAL_BAG_NAME),
+    };
     let mut bags = HashMap::<Identifier, TypedBag>::new();
-    bags.insert(current_bag_name.clone(), crate::typed_bag::TypedBag::new(Predicate {
-        pattern: crate::parser::pattern("_").unwrap().1,
-        guard: full_expression("true").unwrap().1,
-        limit: None,
-    })); 
+    bags.insert(
+        current_bag_name.clone(),
+        crate::typed_bag::TypedBag::new(Predicate {
+            pattern: crate::parser::pattern("_").unwrap().1,
+            guard: full_expression("true").unwrap().1,
+            limit: None,
+        }),
+    );
 
     let mut rl = Editor::<()>::new()?;
     if rl.load_history("history.txt").is_err() {
@@ -112,24 +117,30 @@ fn main() -> rustyline::Result<()> {
                 match stmt {
                     Statement::Clear => {
                         env.clear();
-                    },
+                    }
                     Statement::Exit => {
                         break;
-                    },
+                    }
                     Statement::Help => {
                         println!("Interactive help is not yet implemented. Please take a look at the README.md file");
-                    },
+                    }
                     Statement::TellBag => {
                         println!("Current Bag: {current_bag_name}");
-                    },
+                    }
                     Statement::UseBag(bag_id, pred) => {
                         current_bag_name = bag_id;
                         let wants_create = pred.is_some();
-                        if bags.try_insert(current_bag_name.clone(), crate::typed_bag::TypedBag::new(pred.unwrap_or(Predicate {
-                            pattern: crate::parser::pattern("_").unwrap().1,
-                            guard: full_expression("true").unwrap().1,
-                            limit: None,
-                        }))).is_ok(){
+                        if bags
+                            .try_insert(
+                                current_bag_name.clone(),
+                                crate::typed_bag::TypedBag::new(pred.unwrap_or(Predicate {
+                                    pattern: crate::parser::pattern("_").unwrap().1,
+                                    guard: full_expression("true").unwrap().1,
+                                    limit: None,
+                                })),
+                            )
+                            .is_ok()
+                        {
                             println!("CREATED BAG");
                         } else {
                             if wants_create {
@@ -137,8 +148,8 @@ fn main() -> rustyline::Result<()> {
                             }
                             println!("SWITCHED BAG");
                         };
-                    },
-                    Statement::Import(filename) => {             
+                    }
+                    Statement::Import(filename) => {
                         let Some(bag) = bags.get_mut(&current_bag_name) else {
                             continue;
                         };
@@ -168,7 +179,7 @@ fn main() -> rustyline::Result<()> {
                         println!("Imported values from file '{filename}' into current bag({current_bag_name})");
                     }
                     Statement::Export(filename) => {
-                        use std::io::Write;          
+                        use std::io::Write;
                         let Some(bag) = bags.get_mut(&current_bag_name) else {
                             continue;
                         };
@@ -185,7 +196,7 @@ fn main() -> rustyline::Result<()> {
                         }
                         println!("Current bag({current_bag_name}) written to file: {filename}");
                     }
-                    Statement::Insert(expressions) => {          
+                    Statement::Insert(expressions) => {
                         let Some(bag) = bags.get_mut(&current_bag_name) else {
                             continue;
                         };
@@ -213,7 +224,7 @@ fn main() -> rustyline::Result<()> {
                             }
                         }
                     }
-                    Statement::Query(query) => {          
+                    Statement::Query(query) => {
                         let Some(bag) = bags.get_mut(&current_bag_name) else {
                             continue;
                         };
@@ -225,7 +236,7 @@ fn main() -> rustyline::Result<()> {
                             }
                         }
                     }
-                    Statement::Deletion(predicate) => {          
+                    Statement::Deletion(predicate) => {
                         let Some(bag) = bags.get_mut(&current_bag_name) else {
                             continue;
                         };
@@ -259,7 +270,7 @@ fn main() -> rustyline::Result<()> {
                         println!("{ex:?}");
                     }
 
-                    Statement::Eval(ExpressionSet{ expressions }) => {
+                    Statement::Eval(ExpressionSet { expressions }) => {
                         for expression in expressions {
                             let result = match env.eval_expr(&expression) {
                                 Ok(r) => r,
@@ -278,8 +289,12 @@ fn main() -> rustyline::Result<()> {
                             continue;
                         }
                         let mut tmp_env = env.clone();
-                        
-                        for Assignment { pattern, expression } in assignments.assignments {
+
+                        for Assignment {
+                            pattern,
+                            expression,
+                        } in assignments.assignments
+                        {
                             let mut matcher = Matcher {
                                 env: &tmp_env.clone(),
                                 bindings: BTreeMap::new(),
@@ -292,11 +307,11 @@ fn main() -> rustyline::Result<()> {
                                     continue;
                                 }
                             };
-    
+
                             match matcher.match_pattern(&pattern, &result) {
                                 Ok(_) => {
                                     println!("YES:");
-    
+
                                     for (id, v) in &matcher.bindings {
                                         println!("{id} = {v}");
                                     }
@@ -319,9 +334,12 @@ fn main() -> rustyline::Result<()> {
                             env: &env.clone(),
                             bindings: BTreeMap::new(),
                         };
-                        
-                        for Assignment { pattern, expression } in assignments.assignments {
-                            
+
+                        for Assignment {
+                            pattern,
+                            expression,
+                        } in assignments.assignments
+                        {
                             let result = match env.eval_expr(&expression) {
                                 Ok(r) => r,
                                 Err(err) => {
@@ -329,7 +347,7 @@ fn main() -> rustyline::Result<()> {
                                     continue;
                                 }
                             };
-    
+
                             match matcher.match_pattern(&pattern, &result) {
                                 Ok(_) => {
                                     for (id, v) in &matcher.bindings {
@@ -377,7 +395,10 @@ fn main() -> rustyline::Result<()> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{parser::{expression_multi, try_match_multi}, assignment::AssignmentError};
+    use crate::{
+        assignment::AssignmentError,
+        parser::{expression_multi, try_match_multi},
+    };
     use std::assert_matches::assert_matches;
 
     #[test]
@@ -395,8 +416,8 @@ mod test {
             let Ok((_, value)) = expression_multi(result) else {
                 unreachable!("Expression set B can be parsed, {result}");
             };
-            
-            for (a,b) in std::iter::zip(parsed.expressions, value.expressions) {
+
+            for (a, b) in std::iter::zip(parsed.expressions, value.expressions) {
                 let evaled = env.eval_expr(&a);
                 let valued_evaled = env.eval_expr(&b);
 
@@ -409,7 +430,6 @@ mod test {
                     "Expression A and B evaluate to the same value"
                 );
             }
-            
         }
 
         let Some(e) = tests.into_remainder() else {
@@ -443,8 +463,11 @@ mod test {
                 unreachable!("Topological Error in: {case}");
             }
 
-            for Assignment{pattern, expression} in assignment_set.assignments {  
-
+            for Assignment {
+                pattern,
+                expression,
+            } in assignment_set.assignments
+            {
                 let Ok(value) = env.eval_expr(&expression) else {
                     unreachable!("TestExpression can be evaluated: {case}");
                 };
@@ -478,7 +501,11 @@ mod test {
                 unreachable!("Topological Error in: {case}");
             }
 
-            for Assignment{pattern, expression} in assignment_set.assignments {  
+            for Assignment {
+                pattern,
+                expression,
+            } in assignment_set.assignments
+            {
                 let Ok(value) = env.eval_expr(&expression) else {
                     unreachable!("TestExpression can be evaluated: {case}");
                 };
@@ -509,11 +536,18 @@ mod test {
                 unreachable!("Test Pattern and Expression can be parsed: {case}");
             };
 
-            if assignment_set.sort_topological(tmp_env.identifiers()).is_err() {
+            if assignment_set
+                .sort_topological(tmp_env.identifiers())
+                .is_err()
+            {
                 unreachable!("Topological Error in: {case}");
             }
 
-            for Assignment{pattern, expression} in assignment_set.assignments {  
+            for Assignment {
+                pattern,
+                expression,
+            } in assignment_set.assignments
+            {
                 let Ok(value) = tmp_env.eval_expr(&expression) else {
                     unreachable!("TestExpression can be evaluated: {case}");
                 };
@@ -540,7 +574,10 @@ mod test {
                 unreachable!("Test Pattern and Expression can be parsed: {case}");
             };
 
-            assert_matches!(assignment_set.sort_topological(env.identifiers()), Err(AssignmentError::TopologicalConflict(_)))
+            assert_matches!(
+                assignment_set.sort_topological(env.identifiers()),
+                Err(AssignmentError::TopologicalConflict(_))
+            )
         }
     }
 }

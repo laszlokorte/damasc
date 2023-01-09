@@ -1,22 +1,29 @@
-use std::{collections::{HashSet, VecDeque}};
+use std::collections::{HashSet, VecDeque};
 
-use crate::{pattern::{Pattern, ArrayPatternItem, Rest, ObjectPropertyPattern, PropertyPattern}, expression::{Expression, PropertyKey, ArrayItem, BinaryExpression, LogicalExpression, MemberExpression, ObjectProperty, Property, UnaryExpression, CallExpression, StringTemplate}, identifier::{Identifier}};
+use crate::{
+    expression::{
+        ArrayItem, BinaryExpression, CallExpression, Expression, LogicalExpression,
+        MemberExpression, ObjectProperty, Property, PropertyKey, StringTemplate, UnaryExpression,
+    },
+    identifier::Identifier,
+    pattern::{ArrayPatternItem, ObjectPropertyPattern, Pattern, PropertyPattern, Rest},
+};
 use gen_iter::gen_iter;
 
-#[derive(Clone,Debug)]
-pub(crate) struct Assignment<'a,'b> {
-    pub(crate) pattern: Pattern<'a>, 
-    pub(crate) expression: Expression<'b>
+#[derive(Clone, Debug)]
+pub(crate) struct Assignment<'a, 'b> {
+    pub(crate) pattern: Pattern<'a>,
+    pub(crate) expression: Expression<'b>,
 }
 
-#[derive(Clone,Debug)]
-pub(crate) struct AssignmentSet<'a,'b> {
-    pub(crate) assignments: Vec<Assignment<'a,'b>>
+#[derive(Clone, Debug)]
+pub(crate) struct AssignmentSet<'a, 'b> {
+    pub(crate) assignments: Vec<Assignment<'a, 'b>>,
 }
 
 #[derive(Debug)]
 pub(crate) enum AssignmentError<'s> {
-    TopologicalConflict(HashSet<Identifier<'s>>)
+    TopologicalConflict(HashSet<Identifier<'s>>),
 }
 
 impl<'s> std::fmt::Display for AssignmentError<'s> {
@@ -30,25 +37,34 @@ impl<'s> std::fmt::Display for AssignmentError<'s> {
                     }
                     let _ = write!(f, "{c}");
                 }
-            },
+            }
         }
         Ok(())
     }
 }
 
-impl<'a,'b> AssignmentSet<'a,'b> {
-    pub(crate) fn sort_topological<'c>(&'c mut self, external_ids: HashSet<&Identifier>) -> Result<(), AssignmentError<'c>> {
+impl<'a, 'b> AssignmentSet<'a, 'b> {
+    pub(crate) fn sort_topological<'c>(
+        &'c mut self,
+        external_ids: HashSet<&Identifier>,
+    ) -> Result<(), AssignmentError<'c>> {
         let mut known_ids = HashSet::new();
 
         let mut result: Vec<usize> = Vec::with_capacity(self.assignments.len());
-        
+
         'repeat: loop {
             for (a, assignment) in self.assignments.iter().enumerate() {
                 if result.contains(&a) {
                     continue;
                 }
 
-                if assignment.input_identifiers().filter(|id| !external_ids.contains(id)).filter(|id| !known_ids.contains(id)).count() == 0 {
+                if assignment
+                    .input_identifiers()
+                    .filter(|id| !external_ids.contains(id))
+                    .filter(|id| !known_ids.contains(id))
+                    .count()
+                    == 0
+                {
                     result.push(a);
 
                     for out_id in assignment.output_identifiers() {
@@ -60,8 +76,18 @@ impl<'a,'b> AssignmentSet<'a,'b> {
             }
 
             if result.len() != result.capacity() {
-                let input_ids: HashSet<Identifier> = self.assignments.iter().flat_map(|a|a.input_identifiers()).cloned().collect();
-                let output_ids: HashSet<Identifier> = self.assignments.iter().flat_map(|a|a.output_identifiers()).cloned().collect();
+                let input_ids: HashSet<Identifier> = self
+                    .assignments
+                    .iter()
+                    .flat_map(|a| a.input_identifiers())
+                    .cloned()
+                    .collect();
+                let output_ids: HashSet<Identifier> = self
+                    .assignments
+                    .iter()
+                    .flat_map(|a| a.output_identifiers())
+                    .cloned()
+                    .collect();
                 let cycle: HashSet<_> = input_ids.intersection(&output_ids).cloned().collect();
                 if !cycle.is_empty() {
                     return Err(AssignmentError::TopologicalConflict(cycle));
@@ -69,17 +95,18 @@ impl<'a,'b> AssignmentSet<'a,'b> {
                     return Ok(());
                 }
             } else {
-                self.assignments = result.into_iter().map(|i| self.assignments[i].clone()).collect();
+                self.assignments = result
+                    .into_iter()
+                    .map(|i| self.assignments[i].clone())
+                    .collect();
                 return Ok(());
             }
         }
-
     }
 }
 
-impl<'a,'b> Assignment<'a,'b> {
-    
-    fn output_identifiers(&self) -> impl Iterator<Item=&Identifier> {
+impl<'a, 'b> Assignment<'a, 'b> {
+    fn output_identifiers(&self) -> impl Iterator<Item = &Identifier> {
         gen_iter!(move {
             let mut stack = VecDeque::new();
             stack.push_front(&self.pattern);
@@ -121,8 +148,7 @@ impl<'a,'b> Assignment<'a,'b> {
         })
     }
 
-    
-    fn input_identifiers(&self) -> impl Iterator<Item=&Identifier> {
+    fn input_identifiers(&self) -> impl Iterator<Item = &Identifier> {
         gen_iter!(move {
             let mut expression_stack : VecDeque<&Expression> = VecDeque::new();
             let mut pattern_stack = VecDeque::new();
@@ -204,7 +230,7 @@ impl<'a,'b> Assignment<'a,'b> {
                                 ObjectProperty::Property(Property{key, value}) => {
                                     match key {
                                         PropertyKey::Identifier(_id) => continue,
-                                        PropertyKey::Expression(expr) => 
+                                        PropertyKey::Expression(expr) =>
                                         expression_stack.push_front(expr),
                                     };
                                     expression_stack.push_front(value);

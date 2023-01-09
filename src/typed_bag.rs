@@ -1,21 +1,27 @@
 use std::collections::BTreeMap;
 
-use crate::{bag::ValueBag, query::{Predicate, Query}, env::{Environment, EvalError}, value::Value, matcher::Matcher};
-
-
+use crate::{
+    bag::ValueBag,
+    env::{Environment, EvalError},
+    matcher::Matcher,
+    query::{Predicate, Query},
+    value::Value,
+};
 
 pub(crate) struct TypedBag<'i, 's, 'v> {
-    bag: ValueBag<'s,'v>,
+    bag: ValueBag<'s, 'v>,
     guard: Predicate<'s>,
     env: Environment<'i, 's, 'v>,
 }
 
 impl<'i, 's, 'v> TypedBag<'i, 's, 'v> {
     pub(crate) fn new(guard: Predicate<'s>) -> Self {
-        Self { 
+        Self {
             bag: ValueBag::new(),
             guard,
-            env: Environment { bindings: BTreeMap::new() },
+            env: Environment {
+                bindings: BTreeMap::new(),
+            },
         }
     }
 
