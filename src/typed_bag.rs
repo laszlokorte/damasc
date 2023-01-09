@@ -69,4 +69,8 @@ impl<'i, 's, 'v> TypedBag<'i, 's, 'v> {
     pub fn iter<'x>(&'x self) -> std::slice::Iter<'x, std::borrow::Cow<'v, Value<'s, 'v>>> {
         self.bag.iter()
     }
+
+    pub(crate) fn len(&self) -> usize {
+        self.bag.len()
+    }
 }

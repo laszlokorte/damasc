@@ -29,4 +29,5 @@ pub enum Statement<'a, 'b> {
     Export(Cow<'b, str>),
     UseBag(Identifier<'b>, Option<Predicate<'b>>),
     TellBag,
+    ListBags,
 }

@@ -810,6 +810,7 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
             Statement::Literal,
         ),
         value(Statement::TellBag, all_consuming(ws(tag(".bag")))),
+        value(Statement::ListBags, all_consuming(ws(tag(".bags")))),
         map(
             preceded(ws(tag(".bag ")), all_consuming(ws(identifier))),
             |p| Statement::UseBag(p, None),

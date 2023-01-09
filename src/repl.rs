@@ -112,8 +112,15 @@ impl<'i, 's, 'v> Repl<'i, 's, 'v> {
             }
             Statement::TellBag => {
                 return Ok(ReplOutput::Notice(format!(
-                    "Current Bag: {}",
-                    self.current_bag
+                    "Current Bag: {}, size: {}",
+                    self.current_bag,
+                    self.bags.get(&self.current_bag).map(TypedBag::len).unwrap_or(0)
+                )));
+            }
+            Statement::ListBags => {
+                return Ok(ReplOutput::Notice(format!(
+                    "Bags: {}",
+                    self.bags.keys().map(|i|i.name.as_ref()).collect::<Vec<_>>().join(", ")
                 )));
             }
             Statement::UseBag(bag_id, pred) => {
