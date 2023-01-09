@@ -7,7 +7,7 @@ use actix_web::{
     App, HttpResponse, HttpServer, Responder,
 };
 use askama::Template;
-use damasc::parser::statement;
+use damasc::{parser::statement, statement::Statement};
 use damasc::repl::Repl;
 use serde::Deserialize;
 
@@ -39,16 +39,26 @@ async fn eval(
 
     match statement(&repl.statement) {
         Ok((_, stmt)) => {
-            let output = match repl_state.execute(stmt) {
-                Ok(r) => Some(format!("Ok: {r}")),
-                Err(damasc::repl::ReplError::Exit) => None,
-                Err(e) => Some(format!("Error: {e:?}")),
-            };
+            let deny = matches!(&stmt, Statement::UseBag(..) | Statement::Import(..) | Statement::Export(..));
 
-            ResultTemplate {
-                error: None,
-                repl: &repl,
-                output,
+            if deny {
+                ResultTemplate {
+                    error: Some("This command has been disabled in the web UI".into()),
+                    repl: &repl,
+                    output: None,
+                }
+            } else {
+                let output = match repl_state.execute(stmt) {
+                    Ok(r) => Some(format!("Ok: {r}")),
+                    Err(damasc::repl::ReplError::Exit) => None,
+                    Err(e) => Some(format!("Error: {e:?}")),
+                };
+    
+                ResultTemplate {
+                    error: None,
+                    repl: &repl,
+                    output,
+                }
             }
         }
         Err(e) => ResultTemplate {
@@ -82,7 +92,14 @@ async fn home() -> impl Responder {
 
 #[actix_web::main] // or #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let repl_mutex = Data::new(Mutex::new(Repl::new("init")));
+    let mut repl = Repl::new("init");
+    let Ok((_, stmt)) = statement(".bag jail as _ limit 30") else {
+        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to parse statement"));
+    };
+    let Ok(_) = repl.execute(stmt) else {
+        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to create bag"));
+    };
+    let repl_mutex = Data::new(Mutex::new(repl));
 
     let server = HttpServer::new(move || {
         App::new()
