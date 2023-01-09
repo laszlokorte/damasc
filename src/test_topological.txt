@@ -2,3 +2,4 @@ a=b;b=7;c=a;d=a*b*c
 a=7;b=a
 a=b;b=7
 a=23;b=42
+[_,p,_]=[1,"hello",3];y=z[p];z={"hello":"foo"}

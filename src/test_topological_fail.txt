@@ -2,3 +2,4 @@ x=x
 y=x;x=y
 a=b;b=c;c=d;d=a
 a=b;b=c;c=23;x=y;y=p*q;q=a;p=x
+[_,p,_]=[1,"hello",3];y=z[p];z={"hello":y}

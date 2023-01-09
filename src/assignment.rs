@@ -1,13 +1,12 @@
 use std::collections::{HashSet, VecDeque};
 
-use crate::{
-    expression::{
-        ArrayItem, BinaryExpression, CallExpression, Expression, LogicalExpression,
-        MemberExpression, ObjectProperty, Property, PropertyKey, StringTemplate, UnaryExpression,
-    },
-    identifier::Identifier,
-    pattern::{ArrayPatternItem, ObjectPropertyPattern, Pattern, PropertyPattern, Rest},
+use crate::expression::{
+    ArrayItem, BinaryExpression, CallExpression, Expression, LogicalExpression, MemberExpression,
+    ObjectProperty, Property, PropertyKey, StringTemplate, UnaryExpression,
 };
+use crate::identifier::Identifier;
+use crate::pattern::{ArrayPatternItem, ObjectPropertyPattern, Pattern, PropertyPattern, Rest};
+
 use gen_iter::gen_iter;
 
 #[derive(Clone, Debug)]
@@ -58,6 +57,10 @@ impl<'a, 'b> AssignmentSet<'a, 'b> {
                     continue;
                 }
 
+                dbg!(a, assignment
+                    .input_identifiers().collect::<Vec<_>>(), assignment
+                        .output_identifiers().collect::<Vec<_>>());
+
                 if assignment
                     .input_identifiers()
                     .filter(|id| !external_ids.contains(id))
@@ -88,6 +91,8 @@ impl<'a, 'b> AssignmentSet<'a, 'b> {
                     .flat_map(|a| a.output_identifiers())
                     .cloned()
                     .collect();
+                dbg!(&input_ids);
+                dbg!(&output_ids);
                 let cycle: HashSet<_> = input_ids.intersection(&output_ids).cloned().collect();
                 if !cycle.is_empty() {
                     return Err(AssignmentError::TopologicalConflict(cycle));
@@ -112,12 +117,12 @@ impl<'a, 'b> Assignment<'a, 'b> {
             stack.push_front(&self.pattern);
             while let Some(p) = stack.pop_front() {
                 match &p {
-                    Pattern::Discard => continue,
+                    Pattern::Discard => {},
                     Pattern::Capture(id, _) => yield id,
                     Pattern::Identifier(id) => yield id,
-                    Pattern::TypedDiscard(_) => continue,
+                    Pattern::TypedDiscard(_) => {},
                     Pattern::TypedIdentifier(id, _) => yield id,
-                    Pattern::Literal(_) => continue,
+                    Pattern::Literal(_) => {},
                     Pattern::Object(props, rest) => {
                         for p in props {
                             match p {
@@ -125,7 +130,7 @@ impl<'a, 'b> Assignment<'a, 'b> {
                                 ObjectPropertyPattern::Match(PropertyPattern{key, value}) => {
                                     match key {
                                         PropertyKey::Identifier(id) => yield id,
-                                        PropertyKey::Expression(_expr) => continue,
+                                        PropertyKey::Expression(_expr) => {},
                                     }
                                     stack.push_front(value);
                                 },
@@ -155,19 +160,19 @@ impl<'a, 'b> Assignment<'a, 'b> {
             pattern_stack.push_front(&self.pattern);
             while let Some(p) = pattern_stack.pop_front() {
                 match &p {
-                    Pattern::Discard => continue,
-                    Pattern::Capture(_id, _) => continue,
-                    Pattern::Identifier(_id) => continue,
-                    Pattern::TypedDiscard(_) => continue,
-                    Pattern::TypedIdentifier(_id, _) => continue,
-                    Pattern::Literal(_) => continue,
+                    Pattern::Discard => {},
+                    Pattern::Capture(_id, _) => {},
+                    Pattern::Identifier(_id) => {},
+                    Pattern::TypedDiscard(_) => {},
+                    Pattern::TypedIdentifier(_id, _) => {},
+                    Pattern::Literal(_) => {},
                     Pattern::Object(props, rest) => {
                         for p in props {
                             match p {
-                                ObjectPropertyPattern::Single(_id) => continue,
+                                ObjectPropertyPattern::Single(_id) => {},
                                 ObjectPropertyPattern::Match(PropertyPattern{key, value}) => {
                                     match key {
-                                        PropertyKey::Identifier(_id) => continue,
+                                        PropertyKey::Identifier(_id) => {},
                                         PropertyKey::Expression(expr) => expression_stack.push_front(expr),
                                     }
                                     pattern_stack.push_front(value);
@@ -210,9 +215,7 @@ impl<'a, 'b> Assignment<'a, 'b> {
                         expression_stack.push_front(right);
                     },
                     Expression::Identifier(id) => yield id,
-                    Expression::Literal(_) => {
-                        continue;
-                    },
+                    Expression::Literal(_) => {},
                     Expression::Logical(LogicalExpression {left, right,..}) => {
                         expression_stack.push_front(left);
                         expression_stack.push_front(right);
@@ -228,12 +231,13 @@ impl<'a, 'b> Assignment<'a, 'b> {
                                     yield s;
                                 },
                                 ObjectProperty::Property(Property{key, value}) => {
+                                    expression_stack.push_front(value);
+
                                     match key {
-                                        PropertyKey::Identifier(_id) => continue,
+                                        PropertyKey::Identifier(_id) => {},
                                         PropertyKey::Expression(expr) =>
                                         expression_stack.push_front(expr),
                                     };
-                                    expression_stack.push_front(value);
                                 },
                                 ObjectProperty::Spread(s) => {
                                     expression_stack.push_front(s);
