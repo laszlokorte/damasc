@@ -241,3 +241,9 @@ true
 -23 as Boolean
 true
 ---
+{#where : 10, #limit: 42, #into: 23}.#limit
+42
+---
+{"where" : 10, "limit": 42, "into": 23}.#into
+23
+---
