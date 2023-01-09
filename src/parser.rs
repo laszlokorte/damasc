@@ -9,7 +9,7 @@ use nom::multi::{fold_many0, many0, many1, separated_list0, separated_list1, man
 use nom::sequence::{delimited, pair, preceded, separated_pair, terminated, tuple};
 use nom::IResult;
 
-use crate::assignment::Assignment;
+use crate::assignment::{Assignment, AssignmentSet};
 use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::literal::Literal;
@@ -510,6 +510,13 @@ pub(crate) fn full_expression<'v>(input: &str) -> IResult<&str, Expression<'v>> 
     all_consuming(expression)(input)
 }
 
+pub(crate) fn expression_multi<'v>(input: &str) -> IResult<&str, ExpressionSet<'v>> {
+    map(
+        separated_list1(ws(tag(";")), expression),
+        |expressions| ExpressionSet{ expressions }
+    )(input)
+}
+
 fn full_pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     all_consuming(pattern)(input)
 }
@@ -644,25 +651,26 @@ pub(crate) fn pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     ))(input)
 }
 
-fn assignment<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
+pub(crate) fn assignment_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
+    map(preceded(
+        ws(tag("let ")),
+        separated_list1(ws(tag(";")), 
+        map(separated_pair(pattern, ws(tag("=")), expression),
+        |(pattern, expression)| Assignment {
+            pattern,
+            expression,
+        })),
+    ), |assignments| Statement::AssignSet(AssignmentSet{assignments}))(input)
+}
+
+pub(crate) fn try_match_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
     map(
-        preceded(
-            ws(tag("let ")),
-            separated_pair(pattern, ws(tag("=")), full_expression),
-        ),
-        |(pattern, expression)| Statement::Assign(Assignment {
+        separated_list1(ws(tag(";")), map(separated_pair(pattern, ws(tag("=")), expression),
+        |(pattern, expression)| Assignment {
             pattern,
             expression,
         }),
-    )(input)
-}
-
-pub(crate) fn try_match<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
-    map(
-        separated_pair(pattern, ws(tag("=")), full_expression),
-        |(pattern, expression)| 
-        Statement::Match(Assignment { pattern, expression }),
-    )(input)
+    ), |assignments| Statement::MatchSet(AssignmentSet{assignments}))(input)
 }
 
 fn filename(input: &str) -> IResult<&str, &str> {
@@ -810,8 +818,10 @@ pub(crate) fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>>
                 limit: limit.map(|l| l as usize),
             })),
         ),
-        assignment,
-        try_match,
-        map(full_expression, Statement::Eval),
+        alt((
+            all_consuming(assignment_multi),
+            all_consuming(try_match_multi),
+        )),
+        all_consuming(map(expression_multi, Statement::Eval)),
     )))(input)
 }

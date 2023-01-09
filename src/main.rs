@@ -35,7 +35,7 @@ use parser::{full_expression, statement};
 use statement::Statement;
 use value::Value;
 
-use crate::assignment::Assignment;
+use crate::assignment::{Assignment, AssignmentSet};
 use crate::query::Predicate;
 use crate::typed_bag::TypedBag;
 
@@ -259,65 +259,75 @@ fn main() -> rustyline::Result<()> {
                         println!("{ex:?}");
                     }
 
-                    Statement::Eval(ex) => {
-                        let result = match env.eval_expr(&ex) {
-                            Ok(r) => r,
-                            Err(err) => {
-                                println!("Eval Error, {err:?}");
-                                continue;
-                            }
-                        };
-
-                        println!("{result}");
-                    }
-                    Statement::Assign(Assignment{ pattern, expression: ex }) => {
-                        let mut matcher = Matcher {
-                            env: &env.clone(),
-                            bindings: BTreeMap::new(),
-                        };
-                        let result = match env.eval_expr(&ex) {
-                            Ok(r) => r,
-                            Err(err) => {
-                                println!("Eval Error, {err:?}");
-                                continue;
-                            }
-                        };
-
-                        match matcher.match_pattern(&pattern, &result) {
-                            Ok(_) => {
-                                for (id, v) in &matcher.bindings {
-                                    println!("let {id} = {v}");
+                    Statement::Eval(ExpressionSet{ expressions }) => {
+                        for expression in expressions {
+                            let result = match env.eval_expr(&expression) {
+                                Ok(r) => r,
+                                Err(err) => {
+                                    println!("Eval Error, {err:?}");
+                                    continue;
                                 }
-                                matcher.apply_to_env(&mut env);
-                            }
-                            Err(e) => {
-                                println!("NO: {e:?}")
+                            };
+
+                            println!("{result}");
+                        }
+                    }
+                    Statement::MatchSet(mut assignments) => {
+                        assignments.sort_topological();
+                        
+                        for Assignment { pattern, expression } in assignments.assignments {
+                            let mut matcher = Matcher {
+                                env: &env.clone(),
+                                bindings: BTreeMap::new(),
+                            };
+                            let result = match env.eval_expr(&expression) {
+                                Ok(r) => r,
+                                Err(err) => {
+                                    println!("Eval Error, {err:?}");
+                                    continue;
+                                }
+                            };
+    
+                            match matcher.match_pattern(&pattern, &result) {
+                                Ok(_) => {
+                                    println!("YES:");
+    
+                                    for (id, v) in &matcher.bindings {
+                                        println!("{id} = {v}");
+                                    }
+                                }
+                                Err(e) => {
+                                    println!("NO: {e:?}")
+                                }
                             }
                         }
                     }
-                    Statement::Match(Assignment { pattern, expression }) => {
-                        let mut matcher = Matcher {
-                            env: &env.clone(),
-                            bindings: BTreeMap::new(),
-                        };
-                        let result = match env.eval_expr(&expression) {
-                            Ok(r) => r,
-                            Err(err) => {
-                                println!("Eval Error, {err:?}");
-                                continue;
-                            }
-                        };
-
-                        match matcher.match_pattern(&pattern, &result) {
-                            Ok(_) => {
-                                println!("YES:");
-
-                                for (id, v) in &matcher.bindings {
-                                    println!("{id} = {v}");
+                    Statement::AssignSet(mut assignments) => {
+                        assignments.sort_topological();
+                        
+                        for Assignment { pattern, expression } in assignments.assignments {
+                            let mut matcher = Matcher {
+                                env: &env.clone(),
+                                bindings: BTreeMap::new(),
+                            };
+                            let result = match env.eval_expr(&expression) {
+                                Ok(r) => r,
+                                Err(err) => {
+                                    println!("Eval Error, {err:?}");
+                                    continue;
                                 }
-                            }
-                            Err(e) => {
-                                println!("NO: {e:?}")
+                            };
+    
+                            match matcher.match_pattern(&pattern, &result) {
+                                Ok(_) => {
+                                    for (id, v) in &matcher.bindings {
+                                        println!("let {id} = {v}");
+                                    }
+                                    matcher.apply_to_env(&mut env);
+                                }
+                                Err(e) => {
+                                    println!("NO: {e:?}")
+                                }
                             }
                         }
                     }
@@ -355,7 +365,7 @@ fn main() -> rustyline::Result<()> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::parser::{full_expression, try_match};
+    use crate::parser::{expression_multi, try_match_multi};
     use std::assert_matches::assert_matches;
 
     #[test]
@@ -367,23 +377,27 @@ mod test {
 
         for [expr, result, sep] in &mut tests {
             assert_eq!("---", sep, "Expression pairs are separated by --- line");
-            let parsed = full_expression(expr);
-            let value = full_expression(result);
-            assert!(parsed.is_ok(), "Expression A can be parsed");
+            let Ok((_, parsed)) = expression_multi(expr) else {
+                unreachable!("Expression set A can be parsed, {expr}");
+            };
+            let Ok((_, value)) = expression_multi(result) else {
+                unreachable!("Expression set B can be parsed, {result}");
+            };
+            
+            for (a,b) in std::iter::zip(parsed.expressions, value.expressions) {
+                let evaled = env.eval_expr(&a);
+                let valued_evaled = env.eval_expr(&b);
 
-            assert!(value.is_ok(), "Expression B can be parsed");
+                assert!(evaled.is_ok(), "Expression A can be evaluated");
+                assert!(valued_evaled.is_ok(), "Expression B can be parsed");
 
-            let evaled = env.eval_expr(&parsed.unwrap().1);
-            let valued_evaled = env.eval_expr(&value.unwrap().1);
-
-            assert!(evaled.is_ok(), "Expression A can be evaluated");
-            assert!(valued_evaled.is_ok(), "Expression B can be parsed");
-
-            assert_eq!(
-                evaled.unwrap(),
-                valued_evaled.unwrap(),
-                "Expression A and B evaluate to the same value"
-            );
+                assert_eq!(
+                    evaled.unwrap(),
+                    valued_evaled.unwrap(),
+                    "Expression A and B evaluate to the same value"
+                );
+            }
+            
         }
 
         let Some(e) = tests.into_remainder() else {
@@ -409,19 +423,22 @@ mod test {
                 bindings: BTreeMap::new(),
             };
 
-            let Ok((_, Statement::Match(Assignment { pattern, expression }))) = try_match(case) else {
+            let Ok((_, Statement::MatchSet(AssignmentSet { assignments }))) = try_match_multi(case) else {
                 unreachable!("Test Pattern and Expression can be parsed: {case}");
             };
 
-            let Ok(value) = env.eval_expr(&expression) else {
-                unreachable!("TestExpression can be evaluated: {case}");
-            };
+            for Assignment{pattern, expression} in assignments {  
 
-            assert_matches!(
-                matcher.match_pattern(&pattern, &value),
-                Ok(_),
-                "Test Expression Value matches the test pattern: {case}"
-            );
+                let Ok(value) = env.eval_expr(&expression) else {
+                    unreachable!("TestExpression can be evaluated: {case}");
+                };
+
+                assert_matches!(
+                    matcher.match_pattern(&pattern, &value),
+                    Ok(_),
+                    "Test Expression Value matches the test pattern: {case}"
+                );
+            }
         }
     }
 
@@ -437,21 +454,23 @@ mod test {
                 env: &env,
                 bindings: BTreeMap::new(),
             };
-            let Ok((_, Statement::Match(Assignment { pattern, expression }))) = try_match(case) else {
+            let Ok((_, Statement::MatchSet(AssignmentSet{assignments}))) = try_match_multi(case) else {
                 dbg!(case);
                 unreachable!("Test Pattern and Expression can be parsed: {case}");
             };
 
-            let Ok(value) = env.eval_expr(&expression) else {
-                unreachable!("TestExpression can be evaluated: {case}");
-            };
-            dbg!(case);
+            for Assignment{pattern, expression} in assignments {  
+                let Ok(value) = env.eval_expr(&expression) else {
+                    unreachable!("TestExpression can be evaluated: {case}");
+                };
+                dbg!(case);
 
-            assert_matches!(
-                matcher.match_pattern(&pattern, &value),
-                Err(_),
-                "Test Expression Value does not match the test pattern: {case}"
-            );
+                assert_matches!(
+                    matcher.match_pattern(&pattern, &value),
+                    Err(_),
+                    "Test Expression Value does not match the test pattern: {case}"
+                );
+            }
         }
     }
 }

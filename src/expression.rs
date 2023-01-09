@@ -23,6 +23,11 @@ impl std::fmt::Display for Expression<'_> {
     }
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct ExpressionSet<'s> {
+    pub(crate) expressions: Vec<Expression<'s>>,
+}
+
 type ArrayExpression<'a> = Vec<ArrayItem<'a>>;
 
 #[derive(Clone, Debug)]

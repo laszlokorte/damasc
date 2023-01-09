@@ -62,3 +62,67 @@ true = true
 false = false
 true = !false
 false = !true
+_ = 5;_ = 5
+_ = -5;_ = -5
+_ = "hello";_ = "hello"
+_ = false;_ = false
+_ = true;_ = true
+_ = [];_ = []
+_ = {};_ = {}
+_ = [1,2,3];_ = [1,2,3]
+_ = {x:23, y:42};_ = {x:23, y:42}
+x = 5;x = 5
+x = -5;x = -5
+x = "hello";x = "hello"
+x = false;x = false
+x = true;x = true
+x = [];x = []
+x = {};x = {}
+x = [1,2,3];x = [1,2,3]
+x = {x:23, y:42};x = {x:23, y:42}
+x1 = {x1:23, y1:42};x1 = {x1:23, y1:42}
+_x = {_x1: 23, _y1:42};_x = {_x1: 23, _y1:42}
+{x1,_y} = {x1: 23, _y:42};{x1,_y} = {x1: 23, _y:42}
+[a,a] = [1,1];[a,a] = [1,1]
+x @ [a,a] = [1,1];x @ [a,a] = [1,1]
+[] = [];[] = []
+[...] = [1,2,3];[...] = [1,2,3]
+[...rest] = [1,2,3];[...rest] = [1,2,3]
+[...[...rest]] = [1,2,3];[...[...rest]] = [1,2,3]
+[one, ...rest] = [1,2,3];[one, ...rest] = [1,2,3]
+[one, ...] = [1,2,3];[one, ...] = [1,2,3]
+[one, two, ...rest] = [1,2,3];[one, two, ...rest] = [1,2,3]
+[one, two, ...] = [1,2,3];[one, two, ...] = [1,2,3]
+[one, two, three] = [1,2,3];[one, two, three] = [1,2,3]
+all @ [one, two, three] = [1,2,3];all @ [one, two, three] = [1,2,3]
+[one, two, three, ...rest] = [1,2,3];[one, two, three, ...rest] = [1,2,3]
+[one, two, three, ...] = [1,2,3];[one, two, three, ...] = [1,2,3]
+[_,_,_] = [1,2,3];[_,_,_] = [1,2,3]
+[_,...rest] = [1,2,3];[_,...rest] = [1,2,3]
+[_,...] = [1,2,3];[_,...] = [1,2,3]
+{} = {};{} = {}
+{...rest} = {x:23, y:42};{...rest} = {x:23, y:42}
+{...{...rest}} = {x:23, y:42};{...{...rest}} = {x:23, y:42}
+{...{...}} = {x:23, y:42};{...{...}} = {x:23, y:42}
+{x, ...rest} = {x:23, y:42};{x, ...rest} = {x:23, y:42}
+{x, y} = {x:23, y:42};{x, y} = {x:23, y:42}
+{x, y, ...rest} = {x:23, y:42};{x, y, ...rest} = {x:23, y:42}
+{x: seven, y} = {x:7, y:42};{x: seven, y} = {x:7, y:42}
+{x: seven, y} = {x:7, y:42};{x: seven, y} = {x:7, y:42}
+{["xyz"[0]]: sven,...} = {x:7, y:42};{["xyz"[0]]: sven,...} = {x:7, y:42}
+{x: [...rest], y: _} = {x:[1,2,3], y:[4,5,6]};{x: [...rest], y: _} = {x:[1,2,3], y:[4,5,6]}
+[_ is Boolean, _ is String] = [true, "hello"];[_ is Boolean, _ is String] = [true, "hello"]
+[...foo is Array] = [1,2,3];[...foo is Array] = [1,2,3]
+[_, ...[_ is Integer, _ is Integer]] = [1,2,3];[_, ...[_ is Integer, _ is Integer]] = [1,2,3]
+{x: one @ [_,_,_], y: two @ {a:_,b:_}} = {x:[6,7,8], y: {a:true, b:false}};{x: one @ [_,_,_], y: two @ {a:_,b:_}} = {x:[6,7,8], y: {a:true, b:false}}
+"hello" = "hello";"hello" = "hello"
+[1,2,3] = [1,2,3];[1,2,3] = [1,2,3]
+[_,2,_] = [1,2,3];[_,2,_] = [1,2,3]
+[one,2,three] = [1,2,3];[one,2,three] = [1,2,3]
+[one,2,null] = [1,2,null];[one,2,null] = [1,2,null]
+{x: 23, y} = {x:23,y:42};{x: 23, y} = {x:23,y:42}
+null = null;null = null
+true = true;true = true
+false = false;false = false
+true = !false;true = !false
+false = !true;false = !true
