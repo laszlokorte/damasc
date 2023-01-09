@@ -3,24 +3,24 @@
 
 {% block body %}
 
-<form class="repl-line" action="." method="post">
-<span class="repl-prompt">&gt;&gt;</span>
-<input class="repl-input" autofocus autocomplete="off" name="statement" value="" type="text">
-<button class="repl-button">Eval</button>
-</form>
+{% include "examples.html.j2" %}
+
+{% include "repl.html.j2" %}
+
 
 <h2>&gt;&gt; {{repl.statement}}</h2>
 
 {% match error %}
 {% when Some with (e) %}
-Error {{ e }}
+<strong>Error</strong><br>
+<p class="repl-output">{{ e }}</p>
 {% when None %}
-OK
 {% endmatch %}
 
 {% match output %}
 {% when Some with (e) %}
-<p>Output: {{ e }}</p>
+<strong>Output</strong><br>
+<p class="repl-output">{{ e }}</p>
 {% when None %}
 {% endmatch %}
 

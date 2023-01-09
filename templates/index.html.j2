@@ -4,8 +4,9 @@
 <p>
 Welcome to Damasc. Damasc is an expression language inspired by a subset of ES6.
 </p>
-<form class="repl-line" action="." method="post">
-<input class="repl-input" autofocus autocomplete="off" name="statement" value="{{repl.statement}}" type="text">
-<button class="repl-button">Eval</button>
-</form>
+
+{% include "examples.html.j2" %}
+
+{% include "repl.html.j2" %}
+
 {% endblock body %}

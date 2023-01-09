@@ -51,8 +51,8 @@ impl<'s, 'v> std::fmt::Display for ReplOutput<'s, 'v> {
                 }
                 write!(f, "")
             }
-            ReplOutput::Deleted(count) => writeln!(f, "DELETED {count}."),
-            ReplOutput::Inserted(count) => writeln!(f, "INSERTED {count}."),
+            ReplOutput::Deleted(count) => writeln!(f, "DELETED {count} item."),
+            ReplOutput::Inserted(count) => writeln!(f, "INSERTED {count} item."),
             ReplOutput::Notice(n) => writeln!(f, "{n}"),
             ReplOutput::PatternMissmatch => writeln!(f, "NO."),
         }

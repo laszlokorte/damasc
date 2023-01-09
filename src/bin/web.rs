@@ -4,7 +4,7 @@ use actix_files::Files;
 use actix_web::{
     get, post,
     web::{self, Data},
-    App, HttpResponse, HttpServer, Responder,
+    App, HttpResponse, HttpServer, Responder, http::StatusCode,
 };
 use askama::Template;
 use damasc::{parser::statement, statement::Statement};
@@ -14,6 +14,11 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 struct ReplInput {
     statement: String,
+}
+
+#[derive(Template)]
+#[template(path = "404.html.j2")]
+struct NotFoundTemplate {
 }
 
 #[derive(Template)]
@@ -48,14 +53,14 @@ async fn eval(
                     output: None,
                 }
             } else {
-                let output = match repl_state.execute(stmt) {
-                    Ok(r) => Some(format!("Ok: {r}")),
-                    Err(damasc::repl::ReplError::Exit) => None,
-                    Err(e) => Some(format!("Error: {e:?}")),
+                let (output,error) = match repl_state.execute(stmt) {
+                    Ok(r) => (Some(format!("{r}")), None),
+                    Err(damasc::repl::ReplError::Exit) => (None,None),
+                    Err(e) => (None, Some(format!("{e:?}"))),
                 };
     
                 ResultTemplate {
-                    error: None,
+                    error,
                     repl: &repl,
                     output,
                 }
@@ -90,6 +95,12 @@ async fn home() -> impl Responder {
     .unwrap_or_else(template_error)
 }
 
+async fn not_found() -> HttpResponse {
+    HttpResponse::build(StatusCode::NOT_FOUND)
+        .content_type("text/html; charset=utf-8")
+        .body(NotFoundTemplate{}.render().unwrap())
+}
+
 #[actix_web::main] // or #[tokio::main]
 async fn main() -> std::io::Result<()> {
     let mut repl = Repl::new("init");
@@ -107,6 +118,7 @@ async fn main() -> std::io::Result<()> {
             .service(home)
             .service(eval)
             .service(Files::new("/", "./static/root/").index_file("index.html"))
+            .default_service(web::route().to(not_found))
     })
     .bind(("127.0.0.1", 8080))?;
 

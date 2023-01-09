@@ -63,3 +63,26 @@ body {
     outline: none;
     outline: 2px solid #ab0;
 }
+
+.repl-output {
+    white-space: pre-wrap;
+}
+
+.example-list {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 0.5em 0;
+    gap: 0.5em;
+    align-items: baseline;
+    font-size: small;
+}
+
+.example-button {
+    background-color: #222;
+    color: #fff;
+    border-radius: 1em;
+    border: none;
+    cursor: pointer;
+    padding: 0.2em 0.8em;
+    font-size: small;
+}
