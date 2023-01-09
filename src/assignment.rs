@@ -57,10 +57,6 @@ impl<'a, 'b> AssignmentSet<'a, 'b> {
                     continue;
                 }
 
-                dbg!(a, assignment
-                    .input_identifiers().collect::<Vec<_>>(), assignment
-                        .output_identifiers().collect::<Vec<_>>());
-
                 if assignment
                     .input_identifiers()
                     .filter(|id| !external_ids.contains(id))
@@ -91,8 +87,7 @@ impl<'a, 'b> AssignmentSet<'a, 'b> {
                     .flat_map(|a| a.output_identifiers())
                     .cloned()
                     .collect();
-                dbg!(&input_ids);
-                dbg!(&output_ids);
+
                 let cycle: HashSet<_> = input_ids.intersection(&output_ids).cloned().collect();
                 if !cycle.is_empty() {
                     return Err(AssignmentError::TopologicalConflict(cycle));

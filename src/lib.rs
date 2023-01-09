@@ -1,5 +1,6 @@
 #![feature(let_chains)]
 #![feature(generators)]
+#![feature(map_try_insert)]
 
 pub mod assignment;
 pub mod bag;
@@ -11,15 +12,16 @@ pub mod matcher;
 pub mod parser;
 pub mod pattern;
 pub mod query;
+pub mod repl;
 pub mod statement;
 pub mod typed_bag;
 pub mod value;
 
 use expression::*;
 use identifier::Identifier;
-use value::Value;
-use std::borrow::Cow;
 use literal::Literal;
+use std::borrow::Cow;
+use value::Value;
 
 impl<'s, 'v> Value<'s, 'v> {
     pub fn to_expression(&self) -> Expression<'s> {

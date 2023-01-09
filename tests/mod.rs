@@ -2,8 +2,11 @@
 #![feature(assert_matches)]
 
 use damasc::{
-    assignment::{AssignmentError, Assignment},
-    parser::{expression_multi, try_match_multi}, statement::Statement, env::Environment, matcher::Matcher,
+    assignment::{Assignment, AssignmentError},
+    env::Environment,
+    matcher::Matcher,
+    parser::{expression_multi, try_match_multi},
+    statement::Statement,
 };
 use std::{assert_matches::assert_matches, collections::BTreeMap};
 
