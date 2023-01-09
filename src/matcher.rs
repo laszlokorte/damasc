@@ -101,8 +101,10 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
         rest: &Rest<'s>,
         value: &ValueObjectMap<'s, 'v>,
     ) -> Result<(), PatternFail> {
-        if let Rest::Exact = rest && value.len() != props.len(){
-            return Err(PatternFail::ObjectLengthMismatch);
+        if let Rest::Exact = rest {
+            if value.len() != props.len() {
+                return Err(PatternFail::ObjectLengthMismatch);
+            }
         }
 
         let mut keys = value.keys().collect::<BTreeSet<_>>();
@@ -154,8 +156,10 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
         rest: &Rest<'s>,
         value: &Vec<Cow<'v, Value<'s, 'v>>>,
     ) -> Result<(), PatternFail> {
-        if let Rest::Exact = rest && value.len() != items.len(){
-            return Err(PatternFail::ArrayLengthMismatch);
+        if let Rest::Exact = rest {
+            if value.len() != items.len() {
+                return Err(PatternFail::ArrayLengthMismatch);
+            }
         }
 
         if value.len() < items.len() {

@@ -1,6 +1,4 @@
-#![feature(let_chains)]
 #![feature(generators)]
-#![feature(map_try_insert)]
 
 pub mod assignment;
 pub mod bag;

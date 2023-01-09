@@ -26,8 +26,10 @@ impl<'i, 's, 'v> TypedBag<'i, 's, 'v> {
     }
 
     pub fn insert(&mut self, value: &Value<'s, 'v>) -> bool {
-        if let Some(limit) = self.guard.limit && limit <= self.bag.len() {
-            return false;
+        if let Some(limit) = self.guard.limit {
+            if limit <= self.bag.len() {
+                return false;
+            }
         }
         let mut matcher = Matcher {
             env: &self.env,

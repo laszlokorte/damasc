@@ -62,8 +62,10 @@ impl<'s, 'v> ValueBag<'s, 'v> {
                 if let Ok(Value::Boolean(true)) = env.eval_expr(&query.predicate.guard) {
                     yield env.eval_expr(&query.projection);
                     count+=1;
-                    if let Some(l) = query.predicate.limit && count >= l {
-                        break;
+                    if let Some(l) = query.predicate.limit {
+                        if count >= l {
+                            break;
+                        }
                     }
                 }
             }
@@ -115,8 +117,10 @@ impl<'s, 'v> ValueBag<'s, 'v> {
         };
 
         self.items.retain(|item| {
-            if let Some(limit) = predicate.limit && limit <= counter {
-                return true;
+            if let Some(limit) = predicate.limit {
+                if limit <= counter {
+                    return true;
+                }
             }
 
             matcher.clear();

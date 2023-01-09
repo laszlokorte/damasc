@@ -126,18 +126,17 @@ impl<'i, 's, 'v> Repl<'i, 's, 'v> {
             Statement::UseBag(bag_id, pred) => {
                 self.current_bag = bag_id.clone();
                 let wants_create = pred.is_some();
-                if self
+                if !self.bags.contains_key(&self.current_bag) {
+                    self
                     .bags
-                    .try_insert(
+                    .insert(
                         self.current_bag.clone(),
                         TypedBag::new(pred.clone().unwrap_or(Predicate {
                             pattern: pattern("_").unwrap().1,
                             guard: full_expression("true").unwrap().1,
                             limit: None,
                         })),
-                    )
-                    .is_ok()
-                {
+                    );
                     return Ok(ReplOutput::Notice("BAG CREATED".into()));
                 } else if wants_create {
                     return Ok(ReplOutput::Notice("ALREADY EXISTS, SWITCHED BAG".into()));
