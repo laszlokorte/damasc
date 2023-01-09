@@ -35,7 +35,7 @@ use parser::{full_expression, statement};
 use statement::Statement;
 use value::Value;
 
-use crate::assignment::{Assignment, AssignmentSet};
+use crate::assignment::{Assignment};
 use crate::query::Predicate;
 use crate::typed_bag::TypedBag;
 
@@ -273,14 +273,19 @@ fn main() -> rustyline::Result<()> {
                         }
                     }
                     Statement::MatchSet(mut assignments) => {
-                        assignments.sort_topological();
+                        if let Err(e) = assignments.sort_topological(env.identifiers()) {
+                            println!("Assignment Error: {e}");
+                            continue;
+                        }
+                        let mut tmp_env = env.clone();
                         
                         for Assignment { pattern, expression } in assignments.assignments {
                             let mut matcher = Matcher {
-                                env: &env.clone(),
+                                env: &tmp_env.clone(),
                                 bindings: BTreeMap::new(),
                             };
-                            let result = match env.eval_expr(&expression) {
+
+                            let result = match tmp_env.eval_expr(&expression) {
                                 Ok(r) => r,
                                 Err(err) => {
                                     println!("Eval Error, {err:?}");
@@ -295,6 +300,8 @@ fn main() -> rustyline::Result<()> {
                                     for (id, v) in &matcher.bindings {
                                         println!("{id} = {v}");
                                     }
+
+                                    matcher.apply_to_env(&mut tmp_env);
                                 }
                                 Err(e) => {
                                     println!("NO: {e:?}")
@@ -303,13 +310,18 @@ fn main() -> rustyline::Result<()> {
                         }
                     }
                     Statement::AssignSet(mut assignments) => {
-                        assignments.sort_topological();
+                        if let Err(e) = assignments.sort_topological(env.identifiers()) {
+                            println!("Assignment Error: {e}");
+                            continue;
+                        }
+
+                        let mut matcher = Matcher {
+                            env: &env.clone(),
+                            bindings: BTreeMap::new(),
+                        };
                         
                         for Assignment { pattern, expression } in assignments.assignments {
-                            let mut matcher = Matcher {
-                                env: &env.clone(),
-                                bindings: BTreeMap::new(),
-                            };
+                            
                             let result = match env.eval_expr(&expression) {
                                 Ok(r) => r,
                                 Err(err) => {
@@ -365,7 +377,7 @@ fn main() -> rustyline::Result<()> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::parser::{expression_multi, try_match_multi};
+    use crate::{parser::{expression_multi, try_match_multi}, assignment::AssignmentError};
     use std::assert_matches::assert_matches;
 
     #[test]
@@ -423,11 +435,15 @@ mod test {
                 bindings: BTreeMap::new(),
             };
 
-            let Ok((_, Statement::MatchSet(AssignmentSet { assignments }))) = try_match_multi(case) else {
+            let Ok((_, Statement::MatchSet(mut assignment_set))) = try_match_multi(case) else {
                 unreachable!("Test Pattern and Expression can be parsed: {case}");
             };
 
-            for Assignment{pattern, expression} in assignments {  
+            if assignment_set.sort_topological(env.identifiers()).is_err() {
+                unreachable!("Topological Error in: {case}");
+            }
+
+            for Assignment{pattern, expression} in assignment_set.assignments {  
 
                 let Ok(value) = env.eval_expr(&expression) else {
                     unreachable!("TestExpression can be evaluated: {case}");
@@ -454,16 +470,18 @@ mod test {
                 env: &env,
                 bindings: BTreeMap::new(),
             };
-            let Ok((_, Statement::MatchSet(AssignmentSet{assignments}))) = try_match_multi(case) else {
-                dbg!(case);
+            let Ok((_, Statement::MatchSet(mut assignment_set))) = try_match_multi(case) else {
                 unreachable!("Test Pattern and Expression can be parsed: {case}");
             };
 
-            for Assignment{pattern, expression} in assignments {  
+            if assignment_set.sort_topological(env.identifiers()).is_err() {
+                unreachable!("Topological Error in: {case}");
+            }
+
+            for Assignment{pattern, expression} in assignment_set.assignments {  
                 let Ok(value) = env.eval_expr(&expression) else {
                     unreachable!("TestExpression can be evaluated: {case}");
                 };
-                dbg!(case);
 
                 assert_matches!(
                     matcher.match_pattern(&pattern, &value),
@@ -471,6 +489,58 @@ mod test {
                     "Test Expression Value does not match the test pattern: {case}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn test_topological_assignments() {
+        let tests = include_str!("test_topological.txt").lines();
+        let env = Environment {
+            bindings: BTreeMap::new(),
+        };
+
+        for case in tests {
+            let mut tmp_env = env.clone();
+            let mut matcher = Matcher {
+                env: &tmp_env.clone(),
+                bindings: BTreeMap::new(),
+            };
+            let Ok((_, Statement::MatchSet(mut assignment_set))) = try_match_multi(case) else {
+                unreachable!("Test Pattern and Expression can be parsed: {case}");
+            };
+
+            if assignment_set.sort_topological(tmp_env.identifiers()).is_err() {
+                unreachable!("Topological Error in: {case}");
+            }
+
+            for Assignment{pattern, expression} in assignment_set.assignments {  
+                let Ok(value) = tmp_env.eval_expr(&expression) else {
+                    unreachable!("TestExpression can be evaluated: {case}");
+                };
+
+                assert_matches!(
+                    matcher.match_pattern(&pattern, &value),
+                    Ok(_),
+                    "Test Expression Value matches the test pattern: {case}"
+                );
+
+                matcher.apply_to_env(&mut tmp_env);
+            }
+        }
+    }
+    #[test]
+    fn test_topological_fail() {
+        let tests = include_str!("test_topological_fail.txt").lines();
+        let env = Environment {
+            bindings: BTreeMap::new(),
+        };
+
+        for case in tests {
+            let Ok((_, Statement::MatchSet(mut assignment_set))) = try_match_multi(case) else {
+                unreachable!("Test Pattern and Expression can be parsed: {case}");
+            };
+
+            assert_matches!(assignment_set.sort_topological(env.identifiers()), Err(AssignmentError::TopologicalConflict(_)))
         }
     }
 }

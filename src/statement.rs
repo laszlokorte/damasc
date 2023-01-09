@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use crate::{
     expression::{Expression, ExpressionSet},
     pattern::Pattern,
-    query::{Predicate, Query}, identifier::Identifier, assignment::{Assignment, AssignmentSet},
+    query::{Predicate, Query}, identifier::Identifier, assignment::{AssignmentSet},
 };
 
 #[derive(Clone)]

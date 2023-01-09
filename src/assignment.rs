@@ -1,6 +1,6 @@
-use std::borrow::Cow;
+use std::{collections::{HashSet, VecDeque}};
 
-use crate::{pattern::Pattern, expression::Expression, identifier::Identifier};
+use crate::{pattern::{Pattern, ArrayPatternItem, Rest, ObjectPropertyPattern, PropertyPattern}, expression::{Expression, PropertyKey, ArrayItem, BinaryExpression, LogicalExpression, MemberExpression, ObjectProperty, Property, UnaryExpression, CallExpression, StringTemplate}, identifier::{Identifier}};
 use gen_iter::gen_iter;
 
 #[derive(Clone,Debug)]
@@ -14,30 +14,221 @@ pub(crate) struct AssignmentSet<'a,'b> {
     pub(crate) assignments: Vec<Assignment<'a,'b>>
 }
 
+#[derive(Debug)]
+pub(crate) enum AssignmentError<'s> {
+    TopologicalConflict(HashSet<Identifier<'s>>)
+}
+
+impl<'s> std::fmt::Display for AssignmentError<'s> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AssignmentError::TopologicalConflict(conflicts) => {
+                let _ = write!(f, "TopologicalConflict: ");
+                for (n, c) in conflicts.iter().enumerate() {
+                    if n > 0 {
+                        let _ = write!(f, ", ");
+                    }
+                    let _ = write!(f, "{c}");
+                }
+            },
+        }
+        Ok(())
+    }
+}
+
 impl<'a,'b> AssignmentSet<'a,'b> {
-    pub(crate) fn sort_topological(&mut self) {
-        for assignment in &self.assignments {
-            for out_id in assignment.output_identifiers() {
-                for in_id in assignment.input_identifiers() {
-                
+    pub(crate) fn sort_topological<'c>(&'c mut self, external_ids: HashSet<&Identifier>) -> Result<(), AssignmentError<'c>> {
+        let mut known_ids = HashSet::new();
+
+        let mut result: Vec<usize> = Vec::with_capacity(self.assignments.len());
+        
+        'repeat: loop {
+            for (a, assignment) in self.assignments.iter().enumerate() {
+                if result.contains(&a) {
+                    continue;
+                }
+
+                if assignment.input_identifiers().filter(|id| !external_ids.contains(id)).filter(|id| !known_ids.contains(id)).count() == 0 {
+                    result.push(a);
+
+                    for out_id in assignment.output_identifiers() {
+                        known_ids.insert(out_id);
+                    }
+
+                    continue 'repeat;
                 }
             }
+
+            if result.len() != result.capacity() {
+                let input_ids: HashSet<Identifier> = self.assignments.iter().flat_map(|a|a.input_identifiers()).cloned().collect();
+                let output_ids: HashSet<Identifier> = self.assignments.iter().flat_map(|a|a.output_identifiers()).cloned().collect();
+                let cycle: HashSet<_> = input_ids.intersection(&output_ids).cloned().collect();
+                if !cycle.is_empty() {
+                    return Err(AssignmentError::TopologicalConflict(cycle));
+                } else {
+                    return Ok(());
+                }
+            } else {
+                self.assignments = result.into_iter().map(|i| self.assignments[i].clone()).collect();
+                return Ok(());
+            }
         }
+
     }
 }
 
 impl<'a,'b> Assignment<'a,'b> {
     
-    fn output_identifiers(&self) -> impl Iterator<Item=Identifier> {
-
+    fn output_identifiers(&self) -> impl Iterator<Item=&Identifier> {
         gen_iter!(move {
-            yield Identifier{name:Cow::Borrowed("foo")};
+            let mut stack = VecDeque::new();
+            stack.push_front(&self.pattern);
+            while let Some(p) = stack.pop_front() {
+                match &p {
+                    Pattern::Discard => continue,
+                    Pattern::Capture(id, _) => yield id,
+                    Pattern::Identifier(id) => yield id,
+                    Pattern::TypedDiscard(_) => continue,
+                    Pattern::TypedIdentifier(id, _) => yield id,
+                    Pattern::Literal(_) => continue,
+                    Pattern::Object(props, rest) => {
+                        for p in props {
+                            match p {
+                                ObjectPropertyPattern::Single(id) => yield id,
+                                ObjectPropertyPattern::Match(PropertyPattern{key, value}) => {
+                                    match key {
+                                        PropertyKey::Identifier(id) => yield id,
+                                        PropertyKey::Expression(_expr) => continue,
+                                    }
+                                    stack.push_front(value);
+                                },
+                            };
+                        }
+                        if let Rest::Collect(p) = rest {
+                            stack.push_front(p);
+                        }
+                    },
+                    Pattern::Array(items, rest) => {
+                        for ArrayPatternItem::Pattern(p) in items {
+                            stack.push_front(p);
+                        }
+                        if let Rest::Collect(p) = rest {
+                            stack.push_front(p);
+                        }
+                    },
+                }
+            }
         })
     }
 
-    fn input_identifiers(&self) -> impl Iterator<Item=Identifier> {
+    
+    fn input_identifiers(&self) -> impl Iterator<Item=&Identifier> {
         gen_iter!(move {
-            yield Identifier{name:Cow::Borrowed("foo")};
+            let mut expression_stack : VecDeque<&Expression> = VecDeque::new();
+            let mut pattern_stack = VecDeque::new();
+            pattern_stack.push_front(&self.pattern);
+            while let Some(p) = pattern_stack.pop_front() {
+                match &p {
+                    Pattern::Discard => continue,
+                    Pattern::Capture(_id, _) => continue,
+                    Pattern::Identifier(_id) => continue,
+                    Pattern::TypedDiscard(_) => continue,
+                    Pattern::TypedIdentifier(_id, _) => continue,
+                    Pattern::Literal(_) => continue,
+                    Pattern::Object(props, rest) => {
+                        for p in props {
+                            match p {
+                                ObjectPropertyPattern::Single(_id) => continue,
+                                ObjectPropertyPattern::Match(PropertyPattern{key, value}) => {
+                                    match key {
+                                        PropertyKey::Identifier(_id) => continue,
+                                        PropertyKey::Expression(expr) => expression_stack.push_front(expr),
+                                    }
+                                    pattern_stack.push_front(value);
+                                },
+                            };
+                        }
+                        if let Rest::Collect(p) = rest {
+                            pattern_stack.push_front(p);
+                        }
+                    },
+                    Pattern::Array(items, rest) => {
+                        for ArrayPatternItem::Pattern(p) in items {
+                            pattern_stack.push_front(p);
+                        }
+                        if let Rest::Collect(p) = rest {
+                            pattern_stack.push_front(p);
+                        }
+                    },
+                }
+            };
+
+            expression_stack.push_front(&self.expression);
+
+            while let Some(e) = expression_stack.pop_front() {
+                match e {
+                    Expression::Array(arr) => {
+                        for item in arr {
+                            match item {
+                                ArrayItem::Single(s) => {
+                                    expression_stack.push_front(s);
+                                },
+                                ArrayItem::Spread(s) => {
+                                    expression_stack.push_front(s);
+                                },
+                            }
+                        }
+                    },
+                    Expression::Binary(BinaryExpression {left, right,..}) => {
+                        expression_stack.push_front(left);
+                        expression_stack.push_front(right);
+                    },
+                    Expression::Identifier(id) => yield id,
+                    Expression::Literal(_) => {
+                        continue;
+                    },
+                    Expression::Logical(LogicalExpression {left, right,..}) => {
+                        expression_stack.push_front(left);
+                        expression_stack.push_front(right);
+                    },
+                    Expression::Member(MemberExpression{ object, property }) => {
+                        expression_stack.push_front(object);
+                        expression_stack.push_front(property);
+                    },
+                    Expression::Object(props) => {
+                        for p in props {
+                            match p {
+                                ObjectProperty::Single(s) => {
+                                    yield s;
+                                },
+                                ObjectProperty::Property(Property{key, value}) => {
+                                    match key {
+                                        PropertyKey::Identifier(_id) => continue,
+                                        PropertyKey::Expression(expr) => 
+                                        expression_stack.push_front(expr),
+                                    };
+                                    expression_stack.push_front(value);
+                                },
+                                ObjectProperty::Spread(s) => {
+                                    expression_stack.push_front(s);
+                                },
+                            }
+                        }
+                    },
+                    Expression::Unary(UnaryExpression{argument, ..}) => {
+                        expression_stack.push_front(argument);
+                    },
+                    Expression::Call(CallExpression{argument,..}) => {
+                        expression_stack.push_front(argument);
+
+                    },
+                    Expression::Template(StringTemplate{parts, ..}) => {
+                        for p in parts {
+                            expression_stack.push_front(&p.dynamic_end);
+                        }
+                    },
+                }
+            }
         })
     }
 }

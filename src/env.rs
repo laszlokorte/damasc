@@ -459,4 +459,8 @@ impl<'i, 's, 'v> Environment<'i, 's, 'v> {
 
         return Ok(Value::String(Cow::Owned(joined.join(""))));
     }
+
+    pub(crate) fn identifiers(&self) -> std::collections::HashSet<&Identifier> {
+        self.bindings.keys().collect()
+    }
 }
