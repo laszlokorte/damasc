@@ -1,6 +1,7 @@
 
 <form class="repl-line" action="." method="post">
 <span class="repl-prompt">&gt;&gt;</span>
-<input class="repl-input" autofocus autocomplete="off" name="statement" placeholder="{{repl.statement}}" type="text">
+<input class="repl-input" autofocus autocomplete="off" name="statement" value="{% if prefill %}{{repl.statement}}{%endif%}" type="text">
 <button class="repl-button">Eval</button>
+<span class="repl-outline"></span>
 </form>

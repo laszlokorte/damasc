@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::{sync::Mutex, collections::BTreeSet};
 use std::env;
 
 use actix_files::Files;
@@ -8,7 +8,7 @@ use actix_web::{
     App, HttpResponse, HttpServer, Responder, http::StatusCode,
 };
 use askama::Template;
-use damasc::{parser::statement, statement::Statement};
+use damasc::{parser::statement, statement::Statement, identifier::Identifier};
 use damasc::repl::Repl;
 use serde::Deserialize;
 
@@ -28,6 +28,8 @@ struct ResultTemplate<'x> {
     repl: &'x ReplInput,
     error: Option<String>,
     output: Option<String>,
+    bags: BTreeSet<Identifier<'x>>,
+    vars: BTreeSet<Identifier<'x>>,
 }
 
 #[derive(Template)]
@@ -43,11 +45,16 @@ async fn eval(
 ) -> impl Responder {
     let mut repl_state = env_mutex.lock().unwrap();
 
+    let bags = repl_state.bags();
+    let vars = repl_state.vars();
+
     if repl.statement.len() > 500 {
         return HttpResponse::Ok().content_type("text/html").body(ResultTemplate {
             error: Some("Input length is limited to 500 characters".to_string()),
             repl: &repl,
             output: None,
+            bags,
+            vars,
         }.render().unwrap());
     }
 
@@ -60,6 +67,8 @@ async fn eval(
                     error: Some("This command has been disabled in the web UI".into()),
                     repl: &repl,
                     output: None,
+                    bags,
+                    vars,
                 }
             } else {
                 let (output,error) = match repl_state.execute(stmt) {
@@ -67,18 +76,27 @@ async fn eval(
                     Err(damasc::repl::ReplError::Exit) => (None,None),
                     Err(e) => (None, Some(format!("{e:?}"))),
                 };
+
+
+                let bags = repl_state.bags();
+                let vars = repl_state.vars();
     
                 ResultTemplate {
                     error,
                     repl: &repl,
                     output,
+                    bags,
+                    vars,
                 }
             }
         }
+        
         Err(e) => ResultTemplate {
             error: Some(e.to_string()),
             repl: &repl,
             output: None,
+            bags,
+            vars,
         },
     }
     .render()

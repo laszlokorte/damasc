@@ -5,8 +5,30 @@
 
 {% include "examples.html.j2" %}
 
-{% include "repl.html.j2" %}
+{% set prefill = error.is_some() %}
+{% include "repl.html.j2"%}
 
+{% if false %}
+<form class="example-list" action="." method="post">
+<strong>Bags</strong>
+{% for bag in bags %}
+<button name="statement" value=".bag {{bag}}" class="example-button">{{bag}}</button>
+{% endfor %}
+</form>
+{% endif %}
+
+{% if vars.len() > 0 %}
+
+<form class="example-list" action="." method="post">
+<strong>Current Bindings</strong>
+<button name="statement" value=".clear" class="example-button">.clear</button>
+
+{% for var in vars %}
+<button name="statement" value="{{var}}" class="example-button">{{var}}</button>
+{% endfor %}
+</form>
+
+{% endif %}
 
 <h2>&gt;&gt; {{repl.statement}}</h2>
 

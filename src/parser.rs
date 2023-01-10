@@ -506,9 +506,9 @@ pub fn full_expression<'v>(input: &str) -> IResult<&str, Expression<'v>> {
 }
 
 pub fn expression_multi<'v>(input: &str) -> IResult<&str, ExpressionSet<'v>> {
-    map(separated_list1(ws(tag(";")), expression), |expressions| {
+    delimited(space0, map(separated_list1(ws(tag(";")), expression), |expressions| {
         ExpressionSet { expressions }
-    })(input)
+    }), space0)(input)
 }
 
 fn full_pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {

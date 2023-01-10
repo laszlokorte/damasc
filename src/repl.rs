@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, BTreeSet};
 use std::fs::File;
 use std::io::{self, BufRead, LineWriter};
 
@@ -15,10 +15,22 @@ use crate::value::Value;
 use crate::assignment::Assignment;
 use crate::query::Predicate;
 
+
 pub struct Repl<'i, 's, 'v> {
     pub env: Environment<'i, 's, 'v>,
     pub current_bag: Identifier<'s>,
     pub bags: HashMap<Identifier<'s>, TypedBag<'i, 's, 'v>>,
+}
+
+impl<'i, 's, 'v> Repl<'i, 's, 'v> {
+    pub fn bags(&self) -> BTreeSet<Identifier<'v>> {
+        self.bags.keys().cloned().collect()
+    }
+
+    pub fn vars(&self) -> BTreeSet<Identifier<'i>> {
+        self.env.bindings.keys().cloned().collect()
+    }
+
 }
 
 #[derive(Debug)]

@@ -26,6 +26,14 @@ body {
     font-size: 1.4em;
 }
 
+.repl-outline {
+    grid-area: input;
+    pointer-events: none;
+    justify-self: stretch;
+    align-self: stretch;
+    z-index: 10;
+}
+
 .repl-input {
     flex-grow: 1;
     background-color: inherit;
@@ -45,6 +53,7 @@ body {
     justify-self: center;
     align-self: center;
     font-size: 0.6em;
+    color:  #ab0;
 }
 
 .repl-button {
@@ -57,9 +66,23 @@ body {
     font-size: 0.8em;
     cursor: pointer;
     grid-area: button;
+    color:  #ab0;
 }
 
-.repl-input:focus-visible {
+.repl-button:hover {
+    background-color: #2f2f2f;
+}
+
+.repl-button:active {
+    background-color: #010101;
+}
+
+.repl-input:focus {
+    outline: none;
+}
+
+:focus-visible ~ .repl-outline,
+:active ~ .repl-outline {
     outline: none;
     outline: 2px solid #ab0;
 }
@@ -85,6 +108,13 @@ body {
     cursor: pointer;
     padding: 0.2em 0.8em;
     font-size: small;
+}
+
+.example-button:hover {
+    background-color: #2f2f2f;
+}
+.example-button:active {
+    background-color: #010101;
 }
 
 footer {
