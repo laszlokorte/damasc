@@ -128,7 +128,7 @@ async fn main() -> std::io::Result<()> {
     let repl_mutex = Data::new(Mutex::new(repl));
 
     let conf = Configuration {
-        ip: "127.0.0.1".to_string(),
+        ip: env::var("DAMASC_HOST").unwrap_or("127.0.0.1".into()),
         port: env::var("DAMASC_PORT").ok().and_then(|s| s.parse::<u16>().ok()).unwrap_or(8080),
     };
 
