@@ -1,4 +1,5 @@
 use std::sync::Mutex;
+use std::env;
 
 use actix_files::Files;
 use actix_web::{
@@ -109,6 +110,12 @@ async fn not_found() -> HttpResponse {
         .body(NotFoundTemplate{}.render().unwrap())
 }
 
+#[derive(Deserialize, Debug)]
+struct Configuration {
+    ip: String,
+    port: u16,
+}
+
 #[actix_web::main] // or #[tokio::main]
 async fn main() -> std::io::Result<()> {
     let mut repl = Repl::new("init");
@@ -120,6 +127,11 @@ async fn main() -> std::io::Result<()> {
     };
     let repl_mutex = Data::new(Mutex::new(repl));
 
+    let conf = Configuration {
+        ip: "127.0.0.1".to_string(),
+        port: env::var("DAMASC_PORT").ok().and_then(|s| s.parse::<u16>().ok()).unwrap_or(8080),
+    };
+
     let server = HttpServer::new(move || {
         App::new()
             .app_data(repl_mutex.clone())
@@ -128,9 +140,12 @@ async fn main() -> std::io::Result<()> {
             .service(Files::new("/", "./static/root/").index_file("index.html"))
             .default_service(web::route().to(not_found))
     })
-    .bind(("127.0.0.1", 8080))?;
+    .bind((conf.ip, conf.port))?;
 
-    println!("Server started: http://127.0.0.1:8080");
+    println!("Server started");
+    for (adr,scheme) in server.addrs_with_scheme() {
+        println!("Listening on {scheme}://{adr}");
+    }
 
     server.run().await
 }
