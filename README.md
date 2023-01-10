@@ -6,7 +6,8 @@ The syntax and semantic are not a strict subset of ES6. The name is a reference 
 
 ## Live demo
 
-Check out [damasc.laszlokorte.de](https://damasc.laszlokorte.de/) for a live demo. Not all features are enabled in the online version.
+Check out [damasc.laszlokorte.de](https://damasc.laszlokorte.de/) for a live demo.
+The demo is compiled to WASM and runs fully locally in the browser. Currently loading and storing data from or to a file does not work.
 
 ## Features
 
