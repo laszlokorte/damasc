@@ -86,3 +86,8 @@ body {
     padding: 0.2em 0.8em;
     font-size: small;
 }
+
+footer {
+    margin-top: 5em;
+    text-align: center;
+}

@@ -4,6 +4,10 @@ Experimental expression based language inspired by a subset of ES6. The feature 
 
 The syntax and semantic are not a strict subset of ES6. The name is a reference to the patterns of [Damascus steel](https://en.wikipedia.org/wiki/Damascus_steel).
 
+## Live demo
+
+Check out [damasc.laszlokorte.de](https://damasc.laszlokorte.de/) for a live demo. Not all features are enabled in the online version.
+
 ## Features
 
 Includes only: Null, Boolean, String, Integer, Array and Object types. 
@@ -59,8 +63,9 @@ It is made to be embeded as a sub language into other more powerful systems.
 Use cargo to start the REPL:
 
 ```sh
-$ cargo run --bin cli
+$ cargo run
 ```
+
 Inside the REPL you can type simple expressions and hit <kbd>enter</kbd> to evaluate. For example:
 
 ```
