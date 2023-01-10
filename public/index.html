@@ -81,6 +81,7 @@
             el.children[0].children[0].innerText = cmd;
             el.children[0].children[1].innerText = str;
             outElement.appendChild(el);
+            outElement.lastElementChild.scrollIntoView();
           },
           printResult(cmd, str) {
             const el = resultTemplate.content.cloneNode(true);
@@ -91,6 +92,8 @@
             to_clear.forEach((e) => {
               e.value = "";
             })
+
+            outElement.lastElementChild.scrollIntoView();
           },
           clear() {
             outElement.innerHTML = "";
