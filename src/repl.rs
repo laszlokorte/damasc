@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::File;
 use std::io::{self, BufRead, LineWriter};
 
@@ -15,7 +15,6 @@ use crate::value::Value;
 use crate::assignment::Assignment;
 use crate::query::Predicate;
 
-
 pub struct Repl<'i, 's, 'v> {
     pub env: Environment<'i, 's, 'v>,
     pub current_bag: Identifier<'s>,
@@ -30,7 +29,6 @@ impl<'i, 's, 'v> Repl<'i, 's, 'v> {
     pub fn vars(&self) -> BTreeSet<Identifier<'i>> {
         self.env.bindings.keys().cloned().collect()
     }
-
 }
 
 #[derive(Debug)]
@@ -126,22 +124,27 @@ impl<'i, 's, 'v> Repl<'i, 's, 'v> {
                 return Ok(ReplOutput::Notice(format!(
                     "Current Bag: {}, size: {}",
                     self.current_bag,
-                    self.bags.get(&self.current_bag).map(TypedBag::len).unwrap_or(0)
+                    self.bags
+                        .get(&self.current_bag)
+                        .map(TypedBag::len)
+                        .unwrap_or(0)
                 )));
             }
             Statement::ListBags => {
                 return Ok(ReplOutput::Notice(format!(
                     "Bags: {}",
-                    self.bags.keys().map(|i|i.name.as_ref()).collect::<Vec<_>>().join(", ")
+                    self.bags
+                        .keys()
+                        .map(|i| i.name.as_ref())
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 )));
             }
             Statement::UseBag(bag_id, pred) => {
                 self.current_bag = bag_id.clone();
                 let wants_create = pred.is_some();
                 if !self.bags.contains_key(&self.current_bag) {
-                    self
-                    .bags
-                    .insert(
+                    self.bags.insert(
                         self.current_bag.clone(),
                         TypedBag::new(pred.clone().unwrap_or(Predicate {
                             pattern: pattern("_").unwrap().1,

@@ -1,15 +1,17 @@
-use std::{sync::Mutex, collections::BTreeSet};
 use std::env;
+use std::{collections::BTreeSet, sync::Mutex};
 
 use actix_files::Files;
 use actix_web::{
-    get, post,
+    get,
+    http::StatusCode,
+    post,
     web::{self, Data},
-    App, HttpResponse, HttpServer, Responder, http::StatusCode,
+    App, HttpResponse, HttpServer, Responder,
 };
 use askama::Template;
-use damasc::{parser::statement, statement::Statement, identifier::Identifier};
 use damasc::repl::Repl;
+use damasc::{identifier::Identifier, parser::statement, statement::Statement};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -19,8 +21,7 @@ struct ReplInput {
 
 #[derive(Template)]
 #[template(path = "404.html.j2")]
-struct NotFoundTemplate {
-}
+struct NotFoundTemplate {}
 
 #[derive(Template)]
 #[template(path = "result.html.j2")]
@@ -49,18 +50,25 @@ async fn eval(
     let vars = repl_state.vars();
 
     if repl.statement.len() > 500 {
-        return HttpResponse::Ok().content_type("text/html").body(ResultTemplate {
-            error: Some("Input length is limited to 500 characters".to_string()),
-            repl: &repl,
-            output: None,
-            bags,
-            vars,
-        }.render().unwrap());
+        return HttpResponse::Ok().content_type("text/html").body(
+            ResultTemplate {
+                error: Some("Input length is limited to 500 characters".to_string()),
+                repl: &repl,
+                output: None,
+                bags,
+                vars,
+            }
+            .render()
+            .unwrap(),
+        );
     }
 
     match statement(&repl.statement) {
         Ok((_, stmt)) => {
-            let deny = matches!(&stmt, Statement::UseBag(..) | Statement::Import(..) | Statement::Export(..));
+            let deny = matches!(
+                &stmt,
+                Statement::UseBag(..) | Statement::Import(..) | Statement::Export(..)
+            );
 
             if deny {
                 ResultTemplate {
@@ -71,16 +79,15 @@ async fn eval(
                     vars,
                 }
             } else {
-                let (output,error) = match repl_state.execute(stmt) {
+                let (output, error) = match repl_state.execute(stmt) {
                     Ok(r) => (Some(format!("{r}")), None),
-                    Err(damasc::repl::ReplError::Exit) => (None,None),
+                    Err(damasc::repl::ReplError::Exit) => (None, None),
                     Err(e) => (None, Some(format!("{e:?}"))),
                 };
 
-
                 let bags = repl_state.bags();
                 let vars = repl_state.vars();
-    
+
                 ResultTemplate {
                     error,
                     repl: &repl,
@@ -90,7 +97,7 @@ async fn eval(
                 }
             }
         }
-        
+
         Err(e) => ResultTemplate {
             error: Some(e.to_string()),
             repl: &repl,
@@ -125,7 +132,7 @@ async fn home() -> impl Responder {
 async fn not_found() -> HttpResponse {
     HttpResponse::build(StatusCode::NOT_FOUND)
         .content_type("text/html; charset=utf-8")
-        .body(NotFoundTemplate{}.render().unwrap())
+        .body(NotFoundTemplate {}.render().unwrap())
 }
 
 #[derive(Deserialize, Debug)]
@@ -147,7 +154,10 @@ async fn main() -> std::io::Result<()> {
 
     let conf = Configuration {
         ip: env::var("DAMASC_HOST").unwrap_or("127.0.0.1".into()),
-        port: env::var("DAMASC_PORT").ok().and_then(|s| s.parse::<u16>().ok()).unwrap_or(8080),
+        port: env::var("DAMASC_PORT")
+            .ok()
+            .and_then(|s| s.parse::<u16>().ok())
+            .unwrap_or(8080),
     };
 
     let server = HttpServer::new(move || {
@@ -161,7 +171,7 @@ async fn main() -> std::io::Result<()> {
     .bind((conf.ip, conf.port))?;
 
     println!("Server started");
-    for (adr,scheme) in server.addrs_with_scheme() {
+    for (adr, scheme) in server.addrs_with_scheme() {
         println!("Listening on {scheme}://{adr}");
     }
 
