@@ -14,6 +14,7 @@ pub mod repl;
 pub mod statement;
 pub mod typed_bag;
 pub mod value;
+pub mod wasm;
 
 use expression::*;
 use identifier::Identifier;

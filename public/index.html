@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" />
+    <title>Damasc Repl</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="shortcut icon" href="favicon.svg">
+  </head>
+  <body>
+    <div class="app">
+      <h1 class="app-titel"><a class="inherit" href="/">Damasc</a></h1>
+
+      <p>
+      Welcome to Damasc. Damasc is an expression language inspired by a subset of ES6.
+      </p>
+
+
+      <form data-repl class="example-list" action="." method="post">
+        <span>Examples: </span>
+        <button name="statement" value="true" class="example-button">true</button>
+        <button name="statement" value="true && false" class="example-button">true && false</button>
+        <button name="statement" value="5*5" class="example-button">5*5</button>
+        <button name="statement" value="[1,2,3]" class="example-button">[1,2,3]</button>
+        <button name="statement" value="{x:23,y:42}" class="example-button">{x:32,y:42}</button>
+        <button name="statement" value="&quot;hello&quot;" class="example-button">&quot;hello&quot;</button>
+        <button name="statement" value="[_,m,_]=[1,2,3]" class="example-button">[_,m,_]=[1,2,3]</button>
+        <button name="statement" value="t=type(x);{x:[_ is Integer, x]}={x:[23,true]}" class="example-button">t=type(x);{x:[_ is Integer, x]}={x:[23,true]}</button>
+        <button name="statement" value="let [x,y] = [23,42]" class="example-button">let [x,y] = [23,42]</button>
+        <button name="statement" value=".insert 42" class="example-button">.insert 42</button>
+        <button name="statement" value=".pop 42" class="example-button">.pop 42</button>
+        <button name="statement" value=".query x where x > 40" class="example-button">.query x where x > 40</button>
+        <button name="statement" value=".delete x where x > 40 limit 5" class="example-button">.delete x where x > 40 limit 5</button>
+        </form>
+      
+      <div class="repl-output-container">
+        <div class="repl-output" id="repl-output"></div>
+        <button class="clear-button" onclick="window.damascOutput.clear()">clear</button>
+      </div>
+
+      <form data-repl class="repl-line" action="." method="post">
+        <span class="repl-prompt">&gt;&gt;</span>
+        <input data-repl-clear class="repl-input" autofocus autocomplete="off" name="statement" value="" type="text">
+        <button class="repl-button">Eval</button>
+        <span class="repl-outline"></span>
+      </form>
+
+
+      <footer>
+        <a href="https://github.com/laszlokorte/damasc">Damasc on Github</a>
+      </footer>
+    </div>
+
+    <template id="error-template">
+      <div class="out-row error">
+        <div class="out-cmd"></div>
+        <div class="out-result"></div>
+      </div>
+    </template>
+
+    <template id="result-template">
+      <div class="out-row success">
+        <div class="out-cmd"></div>
+        <div class="out-result"></div>
+      </div>
+    </template>
+
+    <script type="module">
+      import init, { WasmRepl } from "./wasm/damasc.js";
+      init().then(() => {
+        const r = new WasmRepl();
+        const outElement = document.getElementById("repl-output");
+        const resultTemplate = document.getElementById('result-template')
+        const errorTemplate = document.getElementById('error-template')
+        const to_clear = Array.prototype.map.call(document.querySelectorAll('[data-repl-clear]'), (e) => {
+          return e
+        });
+
+        window.damascOutput = {
+          printError(cmd, str) {
+            const el = errorTemplate.content.cloneNode(true);
+            el.children[0].children[0].innerText = cmd;
+            el.children[0].children[1].innerText = str;
+            outElement.appendChild(el);
+          },
+          printResult(cmd, str) {
+            const el = resultTemplate.content.cloneNode(true);
+            el.children[0].children[0].innerText = cmd;
+            el.children[0].children[1].innerText = str;
+            outElement.appendChild(el);
+
+            to_clear.forEach((e) => {
+              e.value = "";
+            })
+          },
+          clear() {
+            outElement.innerHTML = "";
+          }
+        }
+        
+        document.addEventListener("submit", (evt) => {
+          const target = evt.target;
+          evt.preventDefault();
+          if(target.hasAttribute("data-repl")) {
+            evt.preventDefault();
+            const formData = new FormData(target);
+            const active = document.activeElement;
+            formData.append(active.name, active.value);
+            const statement = String(formData.get('statement'))
+            if (statement.trim().toLocaleLowerCase() === ".clear") {
+              window.damascOutput.clear();
+              to_clear.forEach((e) => {
+                e.value = "";
+              })
+            } 
+            r.eval(statement)
+          }
+        })
+      });
+    </script>
+  </body>
+</html>

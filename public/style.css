@@ -1,0 +1,177 @@
+body {
+    background: #fafafa;
+    font-family: monospace;
+}
+
+.app-titel {
+    font-size: 1.4em;
+}
+
+.inherit {
+    color: inherit;
+}
+
+.app {
+    max-width: 90ch;
+    margin: auto;
+}
+
+.repl-line {
+    display: grid;
+    grid-template-columns: [input-start prompt-start] 3ch [prompt-end] 1fr [button-start] 10ch [input-end button-end];
+    grid-template-rows: [input-start button-start prompt-start] 1fr [input-end button-end prompt-end];
+    background-color: #222;
+    color: #fff;
+    gap: 1ch;
+    font-size: 1.4em;
+    position: sticky;
+    bottom: 5em;
+}
+
+.repl-outline {
+    grid-area: input;
+    pointer-events: none;
+    justify-self: stretch;
+    align-self: stretch;
+    z-index: 10;
+}
+
+.repl-input {
+    flex-grow: 1;
+    background-color: inherit;
+    color: inherit;
+    border: none;
+    font-family: monospace;
+    padding: 1ch;
+    padding-right: 10ch;
+    padding-left: 3ch;
+    grid-area: input;
+    font-size: inherit;
+}
+
+.repl-prompt {
+    grid-area: prompt;
+    z-index: 2;
+    justify-self: center;
+    align-self: center;
+    font-size: 0.6em;
+    color:  #ab0;
+}
+
+.repl-button {
+    background-color: #111;
+    color: inherit;
+    border: none;
+    font-size: 1em;
+    font-family: monospace;
+    padding: 0.5ch;
+    font-size: 0.8em;
+    cursor: pointer;
+    grid-area: button;
+    color:  #ab0;
+}
+
+.repl-button:hover {
+    background-color: #2f2f2f;
+}
+
+.repl-button:active {
+    background-color: #010101;
+}
+
+.repl-input:focus {
+    outline: none;
+}
+
+:focus-visible ~ .repl-outline,
+:active ~ .repl-outline {
+    outline: none;
+    outline: 2px solid #ab0;
+}
+
+.example-list {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 0.5em 0;
+    gap: 0.5em;
+    align-items: baseline;
+    font-size: small;
+}
+
+.example-button {
+    background-color: #222;
+    color: #fff;
+    border-radius: 1em;
+    border: none;
+    cursor: pointer;
+    padding: 0.2em 0.8em;
+    font-size: small;
+    font: inherit;
+    font-weight: normal;
+}
+
+.example-button:hover {
+    background-color: #2f2f2f;
+}
+.example-button:active {
+    background-color: #010101;
+}
+
+footer {
+    margin-top: 5em;
+    text-align: center;
+}
+
+.out-cmd::before {
+    content: '>> ';
+}
+
+.repl-output {
+    background-color: #444;
+    color: #fff;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+}
+
+.repl-output:empty {
+    display: none;
+}
+
+.out-result {
+    white-space: pre-wrap;
+}
+
+.out-row {
+    display: grid;
+    gap: 0.5em;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    border-bottom: 1px solid #222;
+    padding: 1em;
+}
+
+.out-result {
+    margin-left: 2em;
+}
+
+.out-row.error {
+    color: #f99;
+}
+
+.repl-output-container {
+    display: flex;
+    flex-direction: column-reverse;
+}
+
+.repl-output:empty + button {
+    display: none;
+}
+
+.clear-button {
+    border: none;
+    background-color: #222;
+    color: #fff;
+    font: inherit;
+    cursor: pointer;
+}

@@ -1,3 +1,4 @@
+#![cfg(feature = "cli")]
 #![feature(map_try_insert)]
 
 use damasc::{parser::statement, repl::ReplError};
@@ -7,6 +8,7 @@ use rustyline::Editor;
 const INITIAL_BAG_NAME: &str = "init";
 
 pub(crate) fn main() -> rustyline::Result<()> {
+
     let mut repl = damasc::repl::Repl::new(INITIAL_BAG_NAME);
     let mut rl = Editor::<()>::new()?;
     if rl.load_history("history.txt").is_err() {

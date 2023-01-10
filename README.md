@@ -368,3 +368,11 @@ DELETED 1
 >> .insert {username: "Jack"}
 INSERTED 1
 ```
+
+## Build targets
+
+Currently Damasc can be run in three different ways:
+
+1. as Command line interface (CLI) `cargo run --bin cli`
+2. as web server responding to HTTP POST requests evaluating expressions server side `cargo run --bin web --features web`
+3. as static HTML/JS/WASM page running all calculations locally in a web browser. `wasm-pack build --target web --no-default-features  --out-dir ./public/wasm`, then serving `public/index.html` via local webserver for exaple `cargo server --open --path public`

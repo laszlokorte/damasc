@@ -1,3 +1,5 @@
+#![cfg(feature = "web")]
+
 use std::env;
 use std::{collections::BTreeSet, sync::Mutex};
 
@@ -177,3 +179,4 @@ async fn main() -> std::io::Result<()> {
 
     server.run().await
 }
+
