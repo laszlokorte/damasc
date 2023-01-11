@@ -5,7 +5,7 @@ use crate::{
     expression::{Expression, ExpressionSet},
     identifier::Identifier,
     pattern::Pattern,
-    query::{Predicate, Query},
+    query::{Predicate, ProjectionQuery, DeletionQuery, UpdateQuery},
 };
 
 #[derive(Clone)]
@@ -23,8 +23,9 @@ pub enum Statement<'a, 'b> {
     MatchSet(AssignmentSet<'a, 'b>),
     Insert(Vec<Expression<'b>>),
     Pop(Expression<'b>),
-    Query(Query<'a>),
-    Deletion(Predicate<'a>),
+    Query(ProjectionQuery<'a>),
+    Deletion(DeletionQuery<'a>),
+    Update(UpdateQuery<'a>),
     Import(Cow<'b, str>),
     Export(Cow<'b, str>),
     UseBag(Identifier<'b>, Option<Predicate<'b>>),

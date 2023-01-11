@@ -8,12 +8,12 @@ use crate::{
     env::{Environment, EvalError},
     matcher::Matcher,
     pattern::Pattern,
-    query::{Predicate, Query},
-    value::Value,
+    query::{ProjectionQuery, DeletionQuery, UpdateQuery, Predicate},
+    value::Value, typed_bag,
 };
 
 pub(crate) struct ValueBag<'s, 'v> {
-    items: Vec<Cow<'v, Value<'s, 'v>>>,
+    pub(crate) items: Vec<Cow<'v, Value<'s, 'v>>>,
 }
 
 impl<'s, 'v> ValueBag<'s, 'v> {
@@ -42,7 +42,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
     pub(crate) fn query<'e, 'x: 'e, 'i>(
         &'x self,
         env: &'e Environment<'i, 's, 'v>,
-        query: &'e Query<'s>,
+        query: &'e ProjectionQuery<'s>,
     ) -> impl Iterator<Item = Result<Value<'s, 'v>, EvalError>> + 'e {
         gen_iter!(move {
             let matcher = Matcher {
@@ -108,7 +108,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
     pub(crate) fn delete<'e, 'x: 'e, 'i>(
         &'x mut self,
         env: &'e Environment<'i, 's, 'v>,
-        predicate: &'e Predicate<'s>,
+        deletion: &'e DeletionQuery<'s>,
     ) -> usize {
         let mut counter = 0;
         let mut matcher = Matcher {
@@ -117,7 +117,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
         };
 
         self.items.retain(|item| {
-            if let Some(limit) = predicate.limit {
+            if let Some(limit) = deletion.predicate.limit {
                 if limit <= counter {
                     return true;
                 }
@@ -126,7 +126,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
             matcher.clear();
 
             if !matches!(
-                matcher.match_pattern(&predicate.pattern, item.as_ref()),
+                matcher.match_pattern(&deletion.predicate.pattern, item.as_ref()),
                 Ok(())
             ) {
                 true
@@ -134,7 +134,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
                 let mut env = env.clone();
                 matcher.apply_to_env(&mut env);
                 let should_delete =
-                    matches!(env.eval_expr(&predicate.guard), Ok(Value::Boolean(true)));
+                    matches!(env.eval_expr(&deletion.predicate.guard), Ok(Value::Boolean(true)));
                 if should_delete {
                     counter += 1;
                     false
@@ -144,6 +144,64 @@ impl<'s, 'v> ValueBag<'s, 'v> {
             }
         });
 
+        counter
+    }
+
+    pub(crate) fn update<'e, 'x: 'e, 'i>(
+        &'x mut self,
+        env: &'e Environment<'i, 's, 'v>,
+        update: &'e UpdateQuery<'s>,
+    ) -> usize {
+        self.checked_update(env, update,  &Predicate::any())
+    }
+
+    pub(crate) fn checked_update<'e, 'x: 'e, 'i>(
+        &'x mut self,
+        env: &'e Environment<'i, 's, 'v>,
+        update: &'e UpdateQuery<'s>,
+        post_predicate: &Predicate<'s>
+    ) -> usize
+      {
+        let mut counter = 0;
+
+        let mut matcher = Matcher {
+            env: &env.clone(),
+            bindings: BTreeMap::new(),
+        };
+
+        for item in &mut self.items { 
+            if let Some(limit) = update.predicate.limit {
+                if limit <= counter {
+                    break;
+                }
+            }
+
+            matcher.clear();
+
+            if !matches!(
+                matcher.match_pattern(&update.predicate.pattern, item.as_ref()),
+                Ok(())
+            ) {
+                continue;
+            } else {
+                let mut env = env.clone();
+                matcher.apply_to_env(&mut env);
+                let should_delete =
+                    matches!(env.eval_expr(&update.predicate.guard), Ok(Value::Boolean(true)));
+                if should_delete {
+                    let Ok(val) = env.eval_expr(&update.projection) else {
+                        continue;
+                    };
+                    if typed_bag::check_value(&env, post_predicate, &val) {
+                        *item = Cow::Owned(val);
+                        counter += 1;
+                    }
+                } else {
+                    continue;
+                }
+            }
+
+        }
         counter
     }
 

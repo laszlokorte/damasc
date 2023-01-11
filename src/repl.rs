@@ -40,6 +40,7 @@ pub enum ReplOutput<'s, 'v> {
     Bindings(HashMap<Identifier<'s>, Value<'s, 'v>>),
     Deleted(usize),
     Inserted(usize),
+    Updated(usize),
     Notice(String),
 }
 
@@ -61,8 +62,9 @@ impl<'s, 'v> std::fmt::Display for ReplOutput<'s, 'v> {
                 }
                 write!(f, "")
             }
-            ReplOutput::Deleted(count) => writeln!(f, "DELETED {count} item."),
-            ReplOutput::Inserted(count) => writeln!(f, "INSERTED {count} item."),
+            ReplOutput::Updated(count) => writeln!(f, "CHANGED {count} items."),
+            ReplOutput::Deleted(count) => writeln!(f, "DELETED {count} items."),
+            ReplOutput::Inserted(count) => writeln!(f, "INSERTED {count} items."),
             ReplOutput::Notice(n) => writeln!(f, "{n}"),
             ReplOutput::PatternMissmatch => writeln!(f, "NO."),
         }
@@ -255,6 +257,18 @@ impl<'i, 's, 'v> Repl<'i, 's, 'v> {
                 let count = bag.delete(&self.env, &predicate);
                 if count > 0 {
                     return Ok(ReplOutput::Deleted(count));
+                } else {
+                    Ok(ReplOutput::No)
+                }
+            }
+            Statement::Update(query) => {
+                let Some(bag) = self.bags.get_mut(&self.current_bag) else {
+                    return Err(ReplError::BagError);
+                };
+
+                let count = bag.update(&self.env, &query);
+                if count > 0 {
+                    return Ok(ReplOutput::Updated(count));
                 } else {
                     Ok(ReplOutput::No)
                 }

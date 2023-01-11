@@ -16,7 +16,7 @@ use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::literal::Literal;
 use crate::pattern::*;
-use crate::query::{CrossPredicate, Predicate, Query};
+use crate::query::{CrossPredicate, Predicate, ProjectionQuery, DeletionQuery, UpdateQuery};
 use crate::statement::Statement;
 use crate::value::ValueType;
 
@@ -693,35 +693,37 @@ fn filename(input: &str) -> IResult<&str, &str> {
 
 pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
     all_consuming(alt((
-        all_consuming(value(Statement::Clear, tag(".clear"))),
-        all_consuming(value(
-            Statement::Exit,
-            ws(alt((tag(".exit"), tag(".quit")))),
+        alt((
+            all_consuming(value(Statement::Clear, tag(".clear"))),
+            all_consuming(value(
+                Statement::Exit,
+                ws(alt((tag(".exit"), tag(".quit")))),
+            )),
+            all_consuming(value(Statement::Help, ws(alt((tag(".help"), tag(".h")))))),
+            map(preceded(ws(tag(".load ")), filename), |f| {
+                Statement::Import(Cow::Owned(f.into()))
+            }),
+            map(preceded(ws(tag(".dump ")), filename), |f| {
+                Statement::Export(Cow::Owned(f.into()))
+            }),
+            map(
+                preceded(ws(tag(".inspect ")), full_expression),
+                Statement::Inspect,
+            ),
+            map(
+                preceded(ws(tag(".format ")), full_expression),
+                Statement::Format,
+            ),
+            map(
+                preceded(ws(tag(".pattern ")), full_pattern),
+                Statement::Pattern,
+            ),
         )),
-        all_consuming(value(Statement::Help, ws(alt((tag(".help"), tag(".h")))))),
-        map(preceded(ws(tag(".load ")), filename), |f| {
-            Statement::Import(Cow::Owned(f.into()))
-        }),
-        map(preceded(ws(tag(".dump ")), filename), |f| {
-            Statement::Export(Cow::Owned(f.into()))
-        }),
-        map(
-            preceded(ws(tag(".inspect ")), full_expression),
-            Statement::Inspect,
-        ),
-        map(
-            preceded(ws(tag(".format ")), full_expression),
-            Statement::Format,
-        ),
         map(
             preceded(ws(tag(".insert ")), expression_bag),
             Statement::Insert,
         ),
         map(preceded(ws(tag(".pop ")), full_expression), Statement::Pop),
-        map(
-            preceded(ws(tag(".pattern ")), full_pattern),
-            Statement::Pattern,
-        ),
         map(
             preceded(
                 ws(tag(".delete ")),
@@ -732,10 +734,33 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
                 )),
             ),
             |(pattern, guard, limit)| {
-                Statement::Deletion(Predicate {
-                    pattern,
-                    guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
-                    limit: limit.map(|l| l as usize),
+                Statement::Deletion(DeletionQuery{
+                    predicate: Predicate {
+                        pattern,
+                        guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
+                        limit: limit.map(|l| l as usize),
+                    }
+                })
+            },
+        ),
+        map(
+            preceded(
+                ws(tag(".change ")),
+                tuple((
+                    ws(pattern),
+                    preceded(ws(tag("into")), expression),
+                    opt(preceded(ws(tag("where")), expression)),
+                    opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
+                )),
+            ),
+            |(pattern, projection, guard, limit)| {
+                Statement::Update(UpdateQuery{
+                    predicate: Predicate {
+                        pattern,
+                        guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
+                        limit: limit.map(|l| l as usize),
+                    },
+                    projection
                 })
             },
         ),
@@ -753,7 +778,7 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
                 )),
             )),
             |(outer, (patterns, proj, guard, limit))| {
-                Statement::Query(Query {
+                Statement::Query(ProjectionQuery {
                     outer,
                     projection: proj.unwrap_or_else(|| {
                         if patterns.len() == 1 {
@@ -797,7 +822,7 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
                 opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
             ),
             |limit| {
-                Statement::Query(Query {
+                Statement::Query(ProjectionQuery {
                     outer: false,
                     projection: Expression::Identifier(Identifier {
                         name: Cow::Borrowed("$"),
