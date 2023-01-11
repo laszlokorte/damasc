@@ -24,6 +24,29 @@ impl<'s> Predicate<'s>  {
             limit: None,
         }
     }
+
+    fn is_any(&self) -> bool {
+        matches!(self.pattern, Pattern::Discard) && matches!(self.guard, Expression::Literal(Literal::Boolean(true)))
+    }
+}
+
+impl<'s> std::fmt::Display for Predicate<'s> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if !self.is_any() {
+            write!(f, "{}", self.pattern)?;
+            write!(f, " where {}", self.guard)?;
+
+            if let Some(l) = self.limit {
+                write!(f, " limit {l}")?;
+            }
+        } else if let Some(l) = self.limit {
+            write!(f, "limit {l}")?;
+        } else {
+            write!(f,"none")?;
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Clone)]

@@ -9,7 +9,7 @@ use crate::{
 
 pub struct TypedBag<'i, 's, 'v> {
     bag: ValueBag<'s, 'v>,
-    guard: Predicate<'s>,
+    pub(crate) guard: Predicate<'s>,
     env: Environment<'i, 's, 'v>,
 }
 

@@ -126,13 +126,14 @@ impl<'i, 's, 'v> Repl<'i, 's, 'v> {
                 return Ok(ReplOutput::Notice("Interactive help is not yet implemented. Please take a look at the README.md file".to_string()));
             }
             Statement::TellBag => {
+                let Some(bag) = self.bags.get(&self.current_bag) else {
+                    return Err(ReplError::BagError);
+                };
                 return Ok(ReplOutput::Notice(format!(
-                    "Current Bag: {}, size: {}",
+                    "Current Bag: {}, size: {}, constrain: {}",
                     self.current_bag,
-                    self.bags
-                        .get(&self.current_bag)
-                        .map(TypedBag::len)
-                        .unwrap_or(0)
+                    bag.len(),
+                    bag.guard
                 )));
             }
             Statement::ListBags => {
