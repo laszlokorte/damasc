@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::{expression::Expression, pattern::Pattern, literal::Literal, matcher::Matcher, env::Environment, value::Value, identifier::Identifier};
+use crate::{expression::Expression, pattern::Pattern, literal::Literal, matcher::Matcher, env::Environment, value::Value};
 
 #[derive(Clone)]
 pub struct ProjectionQuery<'s> {

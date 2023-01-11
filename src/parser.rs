@@ -770,7 +770,7 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
                 tuple((
                     delimited(ws(tag("(")), identifier, ws(tag(")"))),
                     ws(pattern),
-                    preceded(ws(tag("into")), expression),
+                    opt(preceded(ws(tag("into")), expression)),
                     opt(preceded(ws(tag("where")), expression)),
                     opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
                 )),
@@ -778,11 +778,41 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
             |(to_bag, pattern, projection, guard, limit)| {
                 Statement::Move(to_bag, TransfereQuery{
                     predicate: Predicate {
-                        pattern,
+                        pattern: Pattern::Capture(
+                            Identifier {
+                                name: Cow::Borrowed("$"),
+                            },
+                            Box::new(pattern),
+                        ),
                         guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
                         limit: limit.map(|l| l as usize),
                     },
-                    projection
+                    projection: projection.unwrap_or(Expression::Identifier(Identifier {
+                        name: Cow::Borrowed("$"),
+                    }))
+                })
+            },
+        ),
+        map(
+            preceded(
+                ws(tag(".move")),
+                tuple((
+                    delimited(ws(tag("(")), identifier, ws(tag(")"))),
+                    opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
+                )),
+            ),
+            |(to_bag, limit)| {
+                Statement::Move(to_bag, TransfereQuery{
+                    projection: Expression::Identifier(Identifier {
+                        name: Cow::Borrowed("$"),
+                    }),
+                    predicate: Predicate {
+                        pattern: Pattern::Identifier(Identifier {
+                            name: Cow::Borrowed("$"),
+                        }),
+                        guard: Expression::Literal(Literal::Boolean(true)),
+                        limit: limit.map(|l| l as usize),
+                    },
                 })
             },
         ),
