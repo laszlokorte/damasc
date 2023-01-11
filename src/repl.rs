@@ -273,6 +273,16 @@ impl<'i, 's, 'v> Repl<'i, 's, 'v> {
                     Ok(ReplOutput::No)
                 }
             }
+            Statement::Move(from,to, query) => {
+                let Some(bag_from) = self.bags.get_mut(&from) else {
+                    return Err(ReplError::BagError);
+                };
+                let Some(bag_to) = self.bags.get_mut(&to) else {
+                    return Err(ReplError::BagError);
+                };
+
+                Ok(ReplOutput::Notice("not yet implement".into()))
+            },
             Statement::Pop(expression) => {
                 let Some(bag) = self.bags.get_mut(&self.current_bag) else {
                     return Err(ReplError::BagError);

@@ -16,7 +16,7 @@ use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::literal::Literal;
 use crate::pattern::*;
-use crate::query::{CrossPredicate, Predicate, ProjectionQuery, DeletionQuery, UpdateQuery};
+use crate::query::{CrossPredicate, Predicate, ProjectionQuery, DeletionQuery, UpdateQuery, TransfereQuery};
 use crate::statement::Statement;
 use crate::value::ValueType;
 
@@ -498,7 +498,7 @@ fn expression<'v>(input: &str) -> IResult<&str, Expression<'v>> {
 }
 
 fn expression_bag<'v>(input: &str) -> IResult<&str, std::vec::Vec<Expression<'v>>> {
-    separated_list1(ws(tag(";")), expression)(input)
+    terminated(separated_list1(ws(tag(";")), expression), opt(ws(tag(";"))))(input)
 }
 
 pub fn full_expression<'v>(input: &str) -> IResult<&str, Expression<'v>> {
@@ -755,6 +755,29 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
             ),
             |(pattern, projection, guard, limit)| {
                 Statement::Update(UpdateQuery{
+                    predicate: Predicate {
+                        pattern,
+                        guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
+                        limit: limit.map(|l| l as usize),
+                    },
+                    projection
+                })
+            },
+        ),
+        map(
+            preceded(
+                ws(tag(".move")),
+                tuple((
+                    delimited(ws(tag("(")), separated_pair(identifier, ws(tag(",")), identifier), ws(tag(")"))),
+                    ws(pattern),
+                    preceded(ws(tag("into")), expression),
+                    opt(preceded(ws(tag("where")), expression)),
+                    opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
+                )),
+            ),
+            |((from_bag, to_bag), pattern, projection, guard, limit)| {
+                Statement::Move(from_bag,
+                    to_bag,TransfereQuery{
                     predicate: Predicate {
                         pattern,
                         guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),

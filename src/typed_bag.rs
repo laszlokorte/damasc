@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use crate::{
     bag::ValueBag,
     env::{Environment, EvalError},
-    matcher::Matcher,
     query::{Predicate, ProjectionQuery, DeletionQuery, UpdateQuery, check_value},
     value::Value,
 };

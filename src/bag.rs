@@ -9,7 +9,7 @@ use crate::{
     matcher::Matcher,
     pattern::Pattern,
     query::{ProjectionQuery, DeletionQuery, UpdateQuery, Predicate, check_value},
-    value::Value, typed_bag,
+    value::Value,
 };
 
 pub(crate) struct ValueBag<'s, 'v> {
