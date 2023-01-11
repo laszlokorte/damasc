@@ -9,6 +9,7 @@ use crate::identifier::Identifier;
 use crate::matcher::Matcher;
 use crate::parser::{full_expression, pattern};
 use crate::statement::Statement;
+use crate::typed_bag::TypedTransfer;
 use crate::typed_bag::TypedBag;
 use crate::value::Value;
 
@@ -41,6 +42,7 @@ pub enum ReplOutput<'s, 'v> {
     Deleted(usize),
     Inserted(usize),
     Updated(usize),
+    Transfered(usize),
     Notice(String),
 }
 
@@ -62,6 +64,7 @@ impl<'s, 'v> std::fmt::Display for ReplOutput<'s, 'v> {
                 }
                 write!(f, "")
             }
+            ReplOutput::Transfered(count) => writeln!(f, "MOVED {count} items."),
             ReplOutput::Updated(count) => writeln!(f, "CHANGED {count} items."),
             ReplOutput::Deleted(count) => writeln!(f, "DELETED {count} items."),
             ReplOutput::Inserted(count) => writeln!(f, "INSERTED {count} items."),
@@ -273,15 +276,14 @@ impl<'i, 's, 'v> Repl<'i, 's, 'v> {
                     Ok(ReplOutput::No)
                 }
             }
-            Statement::Move(from,to, query) => {
-                let Some(bag_from) = self.bags.get_mut(&from) else {
-                    return Err(ReplError::BagError);
-                };
-                let Some(bag_to) = self.bags.get_mut(&to) else {
+            Statement::Move(to, query) => {
+                let Some([bag_from, bag_to]) = self.bags.get_many_mut([&self.current_bag, &to]) else {
                     return Err(ReplError::BagError);
                 };
 
-                Ok(ReplOutput::Notice("not yet implement".into()))
+                let mut transfer = TypedTransfer::new(bag_from, bag_to);
+                
+                Ok(ReplOutput::Transfered(transfer.transfer(&self.env, &query)))
             },
             Statement::Pop(expression) => {
                 let Some(bag) = self.bags.get_mut(&self.current_bag) else {

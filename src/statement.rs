@@ -26,7 +26,7 @@ pub enum Statement<'a, 'b> {
     Query(ProjectionQuery<'a>),
     Deletion(DeletionQuery<'a>),
     Update(UpdateQuery<'a>),
-    Move(Identifier<'b>, Identifier<'b>, TransfereQuery<'a>),
+    Move(Identifier<'b>, TransfereQuery<'a>),
     Import(Cow<'b, str>),
     Export(Cow<'b, str>),
     UseBag(Identifier<'b>, Option<Predicate<'b>>),

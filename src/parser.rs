@@ -768,16 +768,15 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
             preceded(
                 ws(tag(".move")),
                 tuple((
-                    delimited(ws(tag("(")), separated_pair(identifier, ws(tag(",")), identifier), ws(tag(")"))),
+                    delimited(ws(tag("(")), identifier, ws(tag(")"))),
                     ws(pattern),
                     preceded(ws(tag("into")), expression),
                     opt(preceded(ws(tag("where")), expression)),
                     opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
                 )),
             ),
-            |((from_bag, to_bag), pattern, projection, guard, limit)| {
-                Statement::Move(from_bag,
-                    to_bag,TransfereQuery{
+            |(to_bag, pattern, projection, guard, limit)| {
+                Statement::Move(to_bag, TransfereQuery{
                     predicate: Predicate {
                         pattern,
                         guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),

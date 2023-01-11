@@ -8,7 +8,7 @@ use crate::{
     env::{Environment, EvalError},
     matcher::Matcher,
     pattern::Pattern,
-    query::{ProjectionQuery, DeletionQuery, UpdateQuery, Predicate, check_value},
+    query::{ProjectionQuery, DeletionQuery, UpdateQuery, Predicate, check_value, TransfereQuery},
     value::Value,
 };
 
@@ -207,5 +207,68 @@ impl<'s, 'v> ValueBag<'s, 'v> {
 
     pub(crate) fn iter<'x>(&'x self) -> std::slice::Iter<'x, std::borrow::Cow<'v, Value<'s, 'v>>> {
         self.items.iter()
+    }
+}
+
+pub(crate) struct ValueTransfer<'x, 'i, 's> {
+    source: &'x mut ValueBag<'i, 's>,
+    target: &'x mut ValueBag<'i, 's>,
+}
+
+impl<'x, 'i, 's:'i, 'v:'i> ValueTransfer<'x, 'i, 's> {
+    pub(crate) fn new(source: &'x mut ValueBag<'i, 's>, target: &'x mut ValueBag<'i, 's>) -> Self {
+        Self {
+            source,
+            target,
+        }
+    }
+
+    pub(crate) fn transfer<'e>(
+        &'x mut self,
+        env: &'e Environment<'i, 's, 'v>,
+        transfer: &'e TransfereQuery<'s>,
+    ) -> usize {
+        let mut counter = 0;
+        let mut matcher = Matcher {
+            env: &env.clone(),
+            bindings: BTreeMap::new(),
+        };
+
+        self.source.items.retain(|item| {
+            if let Some(limit) = transfer.predicate.limit {
+                if limit <= counter {
+                    return true;
+                }
+            }
+
+            matcher.clear();
+
+            if !matches!(
+                matcher.match_pattern(&transfer.predicate.pattern, item.as_ref()),
+                Ok(())
+            ) {
+                true
+            } else {
+                let mut env = env.clone();
+                matcher.apply_to_env(&mut env);
+                let shall_transfer =
+                    matches!(env.eval_expr(&transfer.predicate.guard), Ok(Value::Boolean(true)));
+                if shall_transfer {
+                    let Ok(target_value) = env.eval_expr(&transfer.projection) else {
+                        return true;
+                    };
+                    if self.target.insert(&target_value) {
+                        counter += 1;
+                        false
+                    } else {
+                        true
+                    }
+                } else {
+                    true
+                }
+            }
+        });
+
+        counter
     }
 }

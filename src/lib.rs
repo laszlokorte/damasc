@@ -1,4 +1,5 @@
 #![feature(generators)]
+#![feature(map_many_mut)]
 
 pub mod assignment;
 pub mod bag;
