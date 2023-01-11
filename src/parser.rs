@@ -506,13 +506,13 @@ pub fn full_expression<'v>(input: &str) -> IResult<&str, Expression<'v>> {
 }
 
 pub fn expression_multi<'v>(input: &str) -> IResult<&str, ExpressionSet<'v>> {
-    delimited(
+    all_consuming(delimited(
         space0,
         map(separated_list1(ws(tag(";")), expression), |expressions| {
             ExpressionSet { expressions }
         }),
-        space0,
-    )(input)
+        alt((ws(tag(";")), space0)),
+    ))(input)
 }
 
 fn full_pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
@@ -651,7 +651,7 @@ pub fn pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
 
 pub(crate) fn assignment_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
     map(
-        preceded(
+        delimited(
             ws(tag("let ")),
             separated_list1(
                 ws(tag(";")),
@@ -663,6 +663,7 @@ pub(crate) fn assignment_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'
                     },
                 ),
             ),
+            alt((ws(tag(";")), space0))
         ),
         |assignments| Statement::AssignSet(AssignmentSet { assignments }),
     )(input)
@@ -670,6 +671,7 @@ pub(crate) fn assignment_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'
 
 pub fn try_match_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
     map(
+        terminated(
         separated_list1(
             ws(tag(";")),
             map(
@@ -680,6 +682,7 @@ pub fn try_match_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> 
                 },
             ),
         ),
+        alt((ws(tag(";")), space0))),
         |assignments| Statement::MatchSet(AssignmentSet { assignments }),
     )(input)
 }
@@ -844,7 +847,7 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
             all_consuming(assignment_multi),
             all_consuming(try_match_multi),
         )),
-        all_consuming(map(expression_multi, Statement::Eval)),
+        map(expression_multi, Statement::Eval),
         value(Statement::Noop, all_consuming(space0)),
     )))(input)
 }
