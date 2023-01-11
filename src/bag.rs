@@ -8,7 +8,7 @@ use crate::{
     env::{Environment, EvalError},
     matcher::Matcher,
     pattern::Pattern,
-    query::{ProjectionQuery, DeletionQuery, UpdateQuery, Predicate},
+    query::{ProjectionQuery, DeletionQuery, UpdateQuery, Predicate, check_value},
     value::Value, typed_bag,
 };
 
@@ -192,7 +192,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
                     let Ok(val) = env.eval_expr(&update.projection) else {
                         continue;
                     };
-                    if typed_bag::check_value(&env, post_predicate, &val) {
+                    if check_value(&env, post_predicate, &val) {
                         *item = Cow::Owned(val);
                         counter += 1;
                     }

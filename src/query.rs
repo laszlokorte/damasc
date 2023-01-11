@@ -1,4 +1,6 @@
-use crate::{expression::Expression, pattern::Pattern, literal::Literal};
+use std::collections::BTreeMap;
+
+use crate::{expression::Expression, pattern::Pattern, literal::Literal, matcher::Matcher, env::Environment, value::Value};
 
 #[derive(Clone)]
 pub struct ProjectionQuery<'s> {
@@ -42,4 +44,25 @@ pub struct DeletionQuery<'s> {
 pub struct UpdateQuery<'s> {
     pub predicate: Predicate<'s>,
     pub projection: Expression<'s>,
+}
+
+
+
+pub(crate) fn check_value<'s,'v>(env: &Environment<'_, 's, 'v>, pred: &Predicate<'s>, val: &Value<'s, 'v>) -> bool {
+    let mut matcher = Matcher {
+        env,
+        bindings: BTreeMap::new(),
+    };
+
+    let Ok(()) = matcher.match_pattern(&pred.pattern, val) else {
+        return false;
+    };
+
+    let local_env = matcher.make_env();
+
+    let Ok(Value::Boolean(true)) = local_env.eval_expr(&pred.guard) else {
+        return false;
+    };
+
+    true
 }

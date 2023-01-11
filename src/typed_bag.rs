@@ -4,7 +4,7 @@ use crate::{
     bag::ValueBag,
     env::{Environment, EvalError},
     matcher::Matcher,
-    query::{Predicate, ProjectionQuery, DeletionQuery, UpdateQuery},
+    query::{Predicate, ProjectionQuery, DeletionQuery, UpdateQuery, check_value},
     value::Value,
 };
 
@@ -12,25 +12,6 @@ pub struct TypedBag<'i, 's, 'v> {
     bag: ValueBag<'s, 'v>,
     guard: Predicate<'s>,
     env: Environment<'i, 's, 'v>,
-}
-
-pub(crate) fn check_value<'s,'v>(env: &Environment<'_, 's, 'v>, pred: &Predicate<'s>, val: &Value<'s, 'v>) -> bool {
-    let mut matcher = Matcher {
-        env,
-        bindings: BTreeMap::new(),
-    };
-
-    let Ok(()) = matcher.match_pattern(&pred.pattern, val) else {
-        return false;
-    };
-
-    let local_env = matcher.make_env();
-
-    let Ok(Value::Boolean(true)) = local_env.eval_expr(&pred.guard) else {
-        return false;
-    };
-
-    true
 }
 
 impl<'i, 's, 'v> TypedBag<'i, 's, 'v> {
