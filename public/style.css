@@ -14,6 +14,7 @@ body {
 .app {
     max-width: 90ch;
     margin: auto;
+    margin-bottom: 4em;
 }
 
 .repl-line {
@@ -25,7 +26,9 @@ body {
     gap: 1ch;
     font-size: 1.4em;
     position: sticky;
-    bottom: 5em;
+    bottom: 2em;
+    border: 0.5em solid #222;
+    --accent-color: #ab0;
 }
 
 .repl-outline {
@@ -55,7 +58,7 @@ body {
     justify-self: center;
     align-self: center;
     font-size: 0.6em;
-    color:  #ab0;
+    color: #555;
 }
 
 .repl-button {
@@ -68,11 +71,11 @@ body {
     font-size: 0.8em;
     cursor: pointer;
     grid-area: button;
-    color:  #ab0;
+    color: #ccc;
 }
 
 .repl-button:hover {
-    background-color: #2f2f2f;
+    background-color: #333;
 }
 
 .repl-button:active {
@@ -86,7 +89,28 @@ body {
 :focus-visible ~ .repl-outline,
 :active ~ .repl-outline {
     outline: none;
-    outline: 2px solid #ab0;
+    outline: 2px solid var(--accent-color, white);
+}
+
+:focus-visible ~ .repl-prompt,
+:active ~ .repl-prompt {
+    color: var(--accent-color, white);
+}
+
+:focus-visible ~ .repl-prompt,
+:active ~ .repl-prompt {
+    color: var(--accent-color, white);
+}
+
+:focus-visible ~ .repl-button {
+    background-color: var(--accent-color, white);
+    color: black;
+}
+
+.repl-button:active {
+    background-color: var(--accent-color, white);
+    color: black;
+    opacity: 0.7;
 }
 
 .example-list {
@@ -122,6 +146,18 @@ footer {
     text-align: center;
 }
 
+.out-cmd {
+    grid-row: 1 / span 1;
+    word-break: break-all;
+    word-wrap: break-word;
+}
+
+.out-result {
+    grid-row: 2 / span 1;
+    word-break: break-all;
+    word-wrap: break-word;
+}
+
 .out-cmd::before {
     content: '>> ';
 }
@@ -146,7 +182,7 @@ footer {
     display: grid;
     gap: 0.5em;
     grid-template-columns: 1fr;
-    grid-template-rows: 1fr;
+    grid-template-rows: auto auto;
     border-bottom: 1px solid #222;
     padding: 1em;
 }
@@ -174,4 +210,17 @@ footer {
     color: #fff;
     font: inherit;
     cursor: pointer;
+}
+
+.out-copy {
+    grid-row: 1/ span 2;
+    align-self: stretch;
+    justify-self: end;
+    padding: 0 1em;
+    color: #aaa;
+    cursor: pointer;
+    border: none;
+    font: inherit;
+    background: none;
+    display: flex;
 }

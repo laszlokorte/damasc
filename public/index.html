@@ -5,13 +5,15 @@
     <title>Damasc Repl</title>
     <link rel="stylesheet" href="style.css">
     <link rel="shortcut icon" href="favicon.svg">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
   </head>
   <body>
     <div class="app">
       <h1 class="app-titel"><a class="inherit" href="/">Damasc</a></h1>
 
       <p>
-      Welcome to Damasc. Damasc is an expression language inspired by a subset of ES6.
+      Welcome to Damasc. Damasc is an expression language inspired by a subset of ES6. </p><p><a href="https://github.com/laszlokorte/damasc">Damasc on Github</a>
+
       </p>
 
 
@@ -30,7 +32,7 @@
         <button name="statement" value=".pop 42" class="example-button">.pop 42</button>
         <button name="statement" value=".query x where x > 40" class="example-button">.query x where x > 40</button>
         <button name="statement" value=".delete x where x > 40 limit 5" class="example-button">.delete x where x > 40 limit 5</button>
-        </form>
+      </form>
       
       <div class="repl-output-container">
         <div class="repl-output" id="repl-output"></div>
@@ -38,22 +40,18 @@
       </div>
 
       <form data-repl class="repl-line" action="." method="post">
-        <span class="repl-prompt">&gt;&gt;</span>
-        <input data-repl-clear class="repl-input" autofocus autocomplete="off" name="statement" value="" type="text">
+        <input autocapitalize="none" id="repl-input-field" data-repl-clear class="repl-input" autofocus autocomplete="off" name="statement" value="" type="text">
         <button class="repl-button">Eval</button>
         <span class="repl-outline"></span>
+        <span class="repl-prompt">&gt;&gt;</span>
       </form>
-
-
-      <footer>
-        <a href="https://github.com/laszlokorte/damasc">Damasc on Github</a>
-      </footer>
     </div>
 
     <template id="error-template">
       <div class="out-row error">
         <div class="out-cmd"></div>
         <div class="out-result"></div>
+        <button class="out-copy">Reuse</button>
       </div>
     </template>
 
@@ -61,6 +59,7 @@
       <div class="out-row success">
         <div class="out-cmd"></div>
         <div class="out-result"></div>
+        <button class="out-copy">Reuse</button>
       </div>
     </template>
 
@@ -74,12 +73,14 @@
         const to_clear = Array.prototype.map.call(document.querySelectorAll('[data-repl-clear]'), (e) => {
           return e
         });
+        const inputField = document.getElementById('repl-input-field');
 
         window.damascOutput = {
           printError(cmd, str) {
             const el = errorTemplate.content.cloneNode(true);
             el.children[0].children[0].innerText = cmd;
             el.children[0].children[1].innerText = str;
+            el.children[0].children[2].setAttribute('data-copy-paste', cmd);
             outElement.appendChild(el);
             outElement.lastElementChild.scrollIntoView();
           },
@@ -87,6 +88,7 @@
             const el = resultTemplate.content.cloneNode(true);
             el.children[0].children[0].innerText = cmd;
             el.children[0].children[1].innerText = str;
+            el.children[0].children[2].setAttribute('data-copy-paste', cmd);
             outElement.appendChild(el);
 
             to_clear.forEach((e) => {
@@ -99,6 +101,17 @@
             outElement.innerHTML = "";
           }
         }
+
+        document.addEventListener('click', (evt) => {
+          const target = evt.target;
+          if (target.hasAttribute('data-copy-paste')) {
+            const toPaste = target.getAttribute('data-copy-paste');
+            if (toPaste) {
+              inputField.value = toPaste;
+              inputField.focus()
+            }
+          }
+        })
         
         document.addEventListener("submit", (evt) => {
           const target = evt.target;
@@ -106,8 +119,12 @@
           if(target.hasAttribute("data-repl")) {
             evt.preventDefault();
             const formData = new FormData(target);
-            const active = document.activeElement;
-            formData.append(active.name, active.value);
+            const active = evt.submitter;
+            if(active && active.name) {
+              formData.append(active.name, active.value);
+            } else {
+              inputField.focus();
+            }
             const statement = String(formData.get('statement'))
             if (statement.trim().toLocaleLowerCase() === ".clear") {
               window.damascOutput.clear();
