@@ -1,6 +1,6 @@
-<img src="./public/favicon.svg" width="128" height="128" alt="The letter D as a logo" />
 
-# Damasc
+
+# <img src="./public/favicon.svg" width="64" height="64" alt="The letter D as a logo" /> Damasc
 
 Experimental expression based language inspired by a subset of ES6. The feature set focuses on object and array literals, destructuring and pattern matching. Supports only immutable value type semantics, no reference types.
 
