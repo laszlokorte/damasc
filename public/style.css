@@ -225,9 +225,6 @@ footer {
     display: flex;
 }
 
-.explainer {
-}
-
 .explainer-head {
     cursor: pointer;
     padding: 0.5em;

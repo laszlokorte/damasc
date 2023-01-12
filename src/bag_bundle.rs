@@ -1,12 +1,13 @@
-use std::{collections::{HashMap, BTreeSet}, borrow::Cow};
+use std::{collections::{HashMap, BTreeSet}, borrow::Cow, ops::DerefMut};
 
 use crate::{identifier::Identifier, typed_bag::{TypedBag, TypedTransfer}, value::Value, env::{Environment, EvalError}, query::{UpdateQuery, DeletionQuery, Predicate, ProjectionQuery, TransfereQuery}};
 
-pub struct BagBundle<'i, 's, 'v> {
-    pub bags: HashMap<Identifier<'s>, TypedBag<'i, 's, 'v>>,
+#[derive(Clone)]
+pub struct BagBundle<'b, 'i, 's, 'v> {
+    pub bags: HashMap<Identifier<'s>, Cow<'b, TypedBag<'i, 's, 'v>>>,
 }
 
-impl<'i, 's, 'v> BagBundle<'i, 's, 'v> {
+impl<'b, 'i, 's, 'v> BagBundle<'b, 'i, 's, 'v> {
     pub(crate) fn new() -> Self {
         Self {
             bags: HashMap::new()
@@ -27,7 +28,7 @@ impl<'i, 's, 'v> BagBundle<'i, 's, 'v> {
         let mut counter = 0;
 
         for v in values {
-            if bag.insert(&v) {
+            if bag.to_mut().insert(&v) {
                 counter+=1;
             }
         }
@@ -43,7 +44,7 @@ impl<'i, 's, 'v> BagBundle<'i, 's, 'v> {
             return Err(BagBundleError::BagDoesNotExist)
         };
 
-        Ok(bag.update(env, update))
+        Ok(bag.to_mut().update(env, update))
     }
 
     pub(crate) fn delete<'e>(&mut self, 
@@ -54,12 +55,12 @@ impl<'i, 's, 'v> BagBundle<'i, 's, 'v> {
             return Err(BagBundleError::BagDoesNotExist)
         };
 
-        Ok(bag.delete(env, deletion))
+        Ok(bag.to_mut().delete(env, deletion))
     }
 
     pub(crate) fn create_bag(&mut self, bag_name: Identifier<'s>, predicate: Predicate<'s>) -> Result<(), BagBundleError> {
         if let std::collections::hash_map::Entry::Vacant(e) = self.bags.entry(bag_name) {
-            e.insert(TypedBag::new(predicate));
+            e.insert(Cow::Owned(TypedBag::new(predicate)));
             Ok(())
         } else {
             Err(BagBundleError::BagAlreadyExists)
@@ -104,7 +105,7 @@ impl<'i, 's, 'v> BagBundle<'i, 's, 'v> {
             return Err(BagBundleError::BagDoesNotExist);
         };
 
-        let mut transfer = TypedTransfer::new(bag_from, bag_to);
+        let mut transfer = TypedTransfer::new(bag_from.to_mut(), bag_to.to_mut());
         
         Ok(transfer.transfer(env, &query))
 
@@ -115,7 +116,7 @@ impl<'i, 's, 'v> BagBundle<'i, 's, 'v> {
             return Err(BagBundleError::BagDoesNotExist)
         };
 
-        Ok(bag.pop(value))
+        Ok(bag.to_mut().pop(value))
     }
 }
 

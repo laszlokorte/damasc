@@ -12,6 +12,7 @@ use crate::{
     value::Value,
 };
 
+#[derive(Clone)]
 pub(crate) struct ValueBag<'s, 'v> {
     pub(crate) items: Vec<Cow<'v, Value<'s, 'v>>>,
 }

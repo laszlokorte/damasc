@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::{self, BufRead, LineWriter};
 
 use crate::bag_bundle::BagBundle;
-use crate::env::{Environment};
+use crate::env::{Environment, EvalError};
 use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::matcher::Matcher;
@@ -15,13 +15,13 @@ use crate::value::Value;
 use crate::assignment::Assignment;
 use crate::query::Predicate;
 
-pub struct Repl<'i, 's, 'v> {
+pub struct Repl<'b, 'i, 's, 'v> {
     pub env: Environment<'i, 's, 'v>,
     pub current_bag: Identifier<'s>,
-    pub bag_bundle: BagBundle<'i, 's, 'v>,
+    pub bag_bundle: BagBundle<'b, 'i, 's, 'v>,
 }
 
-impl<'i, 's, 'v> Repl<'i, 's, 'v> {
+impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
     pub fn bags(&self) -> BTreeSet<Identifier<'v>> {
         self.bag_bundle.bag_names()
     }
@@ -84,7 +84,7 @@ pub enum ReplError {
     BagError,
 }
 
-impl<'i, 's, 'v> Repl<'i, 's, 'v> {
+impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
     pub fn new(initial_bag: &'s str) -> Self {
         let env = Environment {
             bindings: BTreeMap::new(),
@@ -147,6 +147,7 @@ impl<'i, 's, 'v> Repl<'i, 's, 'v> {
             Statement::UseBag(bag_id, pred) => {
                 self.current_bag = bag_id.clone();
                 let wants_create = pred.is_some();
+                
                 match self.bag_bundle.create_bag(bag_id.clone(), Predicate {
                     pattern: pattern("_").unwrap().1,
                     guard: full_expression("true").unwrap().1,
@@ -172,7 +173,7 @@ impl<'i, 's, 'v> Repl<'i, 's, 'v> {
                 };
                 let lines = io::BufReader::new(file).lines();
 
-                let result = self.bag_bundle.insert(&self.current_bag, lines.flat_map(|l| {
+                let result = self.bag_bundle.insert(&self.current_bag, lines.map(|l| {
                     let Ok(line) = l else {
                         return Err(ReplError::ReadError);
                     };
@@ -184,7 +185,7 @@ impl<'i, 's, 'v> Repl<'i, 's, 'v> {
                     };
 
                     Ok(value)
-                }));
+                }).collect::<Result<Vec<_>,_>>()?.into_iter());
 
                 match result {
                     Ok(count) => Ok(ReplOutput::Notice(format!(
@@ -214,9 +215,13 @@ impl<'i, 's, 'v> Repl<'i, 's, 'v> {
             }
             Statement::Insert(expressions) => {
 
-                let result = self.bag_bundle.insert(&self.current_bag, expressions
+                let result = self.bag_bundle.insert(&self.current_bag, 
+                    expressions
                     .into_iter()
-                    .flat_map(|e| self.env.eval_expr(&e)));
+                    .map(|e| self.env.eval_expr(&e))
+                    .collect::<Result<Vec<_>,_>>()
+                    .map_err(|_| ReplError::EvalError)?.into_iter()
+                );
 
                 match result {
                     Ok(count) => {

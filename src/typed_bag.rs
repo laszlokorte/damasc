@@ -7,6 +7,7 @@ use crate::{
     value::Value, matcher::Matcher,
 };
 
+#[derive(Clone)]
 pub struct TypedBag<'i, 's, 'v> {
     bag: ValueBag<'s, 'v>,
     pub(crate) guard: Predicate<'s>,
