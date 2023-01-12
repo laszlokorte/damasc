@@ -26,7 +26,7 @@ extern "C" {
 
 #[wasm_bindgen]
 pub struct WasmRepl {
-    state: Box<Repl<'static,'static,'static>>,
+    state: Box<Repl<'static,'static,'static, 'static>>,
 }
 
 
