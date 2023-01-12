@@ -1,4 +1,4 @@
-# <img src="./public/logo.svg" width="64" height="288" alt="Damasc" /> 
+# <img src="./public/logo.svg" width="288" height="64" alt="Damasc" /> 
 
 Experimental expression based language inspired by a subset of ES6. The feature set focuses on object and array literals, destructuring and pattern matching. Supports only immutable value type semantics, no reference types.
 
