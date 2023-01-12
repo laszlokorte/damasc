@@ -4,12 +4,13 @@ use std::fs::File;
 use std::io::{self, BufRead, LineWriter};
 
 use crate::bag_bundle::BagBundle;
-use crate::env::{Environment, EvalError};
+use crate::env::{Environment};
 use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::matcher::Matcher;
 use crate::parser::{full_expression, pattern};
 use crate::statement::Statement;
+use crate::bag_bundle::Transaction;
 use crate::value::Value;
 
 use crate::assignment::Assignment;
@@ -41,7 +42,7 @@ pub enum ReplOutput<'s, 'v> {
     Deleted(usize),
     Inserted(usize),
     Updated(usize),
-    Transfered(usize),
+    Transferd(usize),
     Notice(String),
 }
 
@@ -63,7 +64,7 @@ impl<'s, 'v> std::fmt::Display for ReplOutput<'s, 'v> {
                 }
                 write!(f, "")
             }
-            ReplOutput::Transfered(count) => writeln!(f, "MOVED {count} items."),
+            ReplOutput::Transferd(count) => writeln!(f, "MOVED {count} items."),
             ReplOutput::Updated(count) => writeln!(f, "CHANGED {count} items."),
             ReplOutput::Deleted(count) => writeln!(f, "DELETED {count} items."),
             ReplOutput::Inserted(count) => writeln!(f, "INSERTED {count} items."),
@@ -95,10 +96,12 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
         };
         let mut bag_bundle = BagBundle::new();
         
-        let _ = bag_bundle.create_bag(current_bag.clone(), Predicate {
-            pattern: pattern("_").unwrap().1,
-            guard: full_expression("true").unwrap().1,
-            limit: None,
+        let _ = Transaction::run(&mut bag_bundle, |t| {
+            t.create_bag(current_bag.clone(), Predicate {
+                pattern: pattern("_").unwrap().1,
+                guard: full_expression("true").unwrap().1,
+                limit: None,
+            })
         });
 
         Self {
@@ -123,35 +126,43 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 return Ok(ReplOutput::Notice("Interactive help is not yet implemented. Please take a look at the README.md file".to_string()));
             }
             Statement::TellBag => {
-                let Ok((size,guard)) = self.bag_bundle.get_bag_info(&self.current_bag) else {
-                    return Err(ReplError::BagError);
-                };
-
-                return Ok(ReplOutput::Notice(format!(
-                    "Current Bag: {}, size: {}, constrain: {}",
-                    self.current_bag,
-                    size,
-                    guard
-                )));
+                Transaction::run(&mut self.bag_bundle, |t| {
+                    let Ok((size,guard)) = t.get_bag_info(&self.current_bag) else {
+                        return Err(ReplError::BagError);
+                    };
+    
+                    return Ok(ReplOutput::Notice(format!(
+                        "Current Bag: {}, size: {}, constrain: {}",
+                        self.current_bag,
+                        size,
+                        guard
+                    )));
+                })
             }
             Statement::ListBags => {
-                return Ok(ReplOutput::Notice(format!(
-                    "Bags: {}",
-                    self.bag_bundle.bag_names()
-                        .iter()
-                        .map(|i| i.name.as_ref())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )));
+                Transaction::run(&mut self.bag_bundle, |t| {
+                    Ok(ReplOutput::Notice(format!(
+                        "Bags: {}",
+                        t.bag_names()
+                            .iter()
+                            .map(|i| i.name.as_ref())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )))
+                })
             }
             Statement::UseBag(bag_id, pred) => {
                 self.current_bag = bag_id.clone();
                 let wants_create = pred.is_some();
                 
-                match self.bag_bundle.create_bag(bag_id.clone(), Predicate {
-                    pattern: pattern("_").unwrap().1,
-                    guard: full_expression("true").unwrap().1,
-                    limit: None,
+                
+
+                match Transaction::run(&mut self.bag_bundle, |t| {
+                    t.create_bag(bag_id.clone(), Predicate {
+                        pattern: pattern("_").unwrap().1,
+                        guard: full_expression("true").unwrap().1,
+                        limit: None,
+                    })
                 }) {
                     Ok(_) => {
                         return Ok(ReplOutput::Notice("BAG CREATED".into()));
@@ -173,19 +184,22 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 };
                 let lines = io::BufReader::new(file).lines();
 
-                let result = self.bag_bundle.insert(&self.current_bag, lines.map(|l| {
-                    let Ok(line) = l else {
-                        return Err(ReplError::ReadError);
-                    };
-                    let Ok((_, expr)) = full_expression(&line) else {
-                        return Err(ReplError::ParseError);
-                    };
-                    let Ok(value) = self.env.eval_expr(&expr) else {
-                        return Err(ReplError::EvalError);
-                    };
-
-                    Ok(value)
-                }).collect::<Result<Vec<_>,_>>()?.into_iter());
+                let result = Transaction::run(&mut self.bag_bundle, |t| {
+                    t.insert(&self.current_bag, lines.map(|l| {
+                        let Ok(line) = l else {
+                            return Err(ReplError::ReadError);
+                        };
+                        let Ok((_, expr)) = full_expression(&line) else {
+                            return Err(ReplError::ParseError);
+                        };
+                        let Ok(value) = self.env.eval_expr(&expr) else {
+                            return Err(ReplError::EvalError);
+                        };
+    
+                        Ok(value)
+                    }).collect::<Result<Vec<_>,_>>()?.into_iter())
+                    .map_err(|_|ReplError::BagError)
+                });
 
                 match result {
                     Ok(count) => Ok(ReplOutput::Notice(format!(
@@ -202,26 +216,31 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 let Ok(file) = File::create(filename.as_ref()) else {
                     return Err(ReplError::IoError);
                 };
-                {
-                    let mut file = LineWriter::new(file);
-                    for v in self.bag_bundle.read(&self.current_bag).map_err(|_| ReplError::IoError)? {
+                
+                let mut file = LineWriter::new(file);
+                Transaction::run(&mut self.bag_bundle, |t| {
+                    for v in t.read(&self.current_bag).map_err(|_| ReplError::IoError)? {
                         let _ = writeln!(file, "{v}");
                     }
-                }
-                return Ok(ReplOutput::Notice(format!(
-                    "Current bag({}) written to file: {filename}",
-                    self.current_bag
-                )));
+
+                    return Ok(ReplOutput::Notice(format!(
+                        "Current bag({}) written to file: {filename}",
+                        self.current_bag
+                    )));
+                })
             }
             Statement::Insert(expressions) => {
 
-                let result = self.bag_bundle.insert(&self.current_bag, 
-                    expressions
-                    .into_iter()
-                    .map(|e| self.env.eval_expr(&e))
-                    .collect::<Result<Vec<_>,_>>()
-                    .map_err(|_| ReplError::EvalError)?.into_iter()
-                );
+                let result = Transaction::run(&mut self.bag_bundle, |t| {
+                    t.insert(&self.current_bag, 
+                        expressions
+                        .into_iter()
+                        .map(|e| self.env.eval_expr(&e))
+                        .collect::<Result<Vec<_>,_>>()
+                        .map_err(|_| ReplError::EvalError)?
+                        .into_iter()
+                    ).map_err(|_| ReplError::BagError)
+                });
 
                 match result {
                     Ok(count) => {
@@ -235,38 +254,46 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 }
             }
             Statement::Query(query) => {
-                self.bag_bundle
-                .query(&self.current_bag, &self.env, &query).map_err(|_| ReplError::BagError)?
-                .collect::<Result<Vec<_>, _>>()
-                .map(ReplOutput::Values)
-                .map_err(|_| ReplError::EvalError)
+                Transaction::run(&mut self.bag_bundle, |t| {
+                    t.query(&self.current_bag, &self.env, &query).map_err(|_| ReplError::BagError)?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map(ReplOutput::Values)
+                    .map_err(|_| ReplError::EvalError)
+                })
             }
             Statement::Deletion(deletion) => {
-                self.bag_bundle.delete(&self.current_bag, &self.env, &deletion)
-                .map_err(|_| ReplError::BagError)
-                .map(ReplOutput::Deleted)
-
+                Transaction::run(&mut self.bag_bundle, |t| {
+                    t.delete(&self.current_bag, &self.env, &deletion)
+                    .map_err(|_| ReplError::BagError)
+                    .map(ReplOutput::Deleted)
+                })
             }
             Statement::Update(update) => {
-                self.bag_bundle.update(&self.current_bag, &self.env, &update)
-                .map_err(|_| ReplError::BagError)
-                .map(ReplOutput::Updated)
+                Transaction::run(&mut self.bag_bundle, |t| {
+                    t.update(&self.current_bag, &self.env, &update)
+                    .map_err(|_| ReplError::BagError)
+                    .map(ReplOutput::Updated)
+                })
             }
             Statement::Move(to, query) => {
-                self.bag_bundle.transfere(&self.current_bag, &to, &self.env, query)
-                .map_err(|_| ReplError::BagError)
-                .map(ReplOutput::Transfered)
+                Transaction::run(&mut self.bag_bundle, |t| {
+                    t.transfer(&self.current_bag, &to, &self.env, query)
+                    .map_err(|_| ReplError::BagError)
+                    .map(ReplOutput::Transferd)
+                })
             },
             Statement::Pop(expression) => {
                 let Ok(value) = self.env.eval_expr(&expression) else {
                     return Err(ReplError::EvalError);
                 };
 
-                match self.bag_bundle.pop(&self.current_bag, &value) {
-                    Ok(false) => Ok(ReplOutput::No),
-                    Ok(true) => Ok(ReplOutput::Ack),
-                    Err(_) => Err(ReplError::BagError),
-                }
+                Transaction::run(&mut self.bag_bundle, |t| {
+                    match t.pop(&self.current_bag, &value) {
+                        Ok(false) => Ok(ReplOutput::No),
+                        Ok(true) => Ok(ReplOutput::Ack),
+                        Err(_) => Err(ReplError::BagError),
+                    }
+                })                
             }
             Statement::Inspect(ex) => {
                 return Ok(ReplOutput::Notice(format!("{ex:?}")));

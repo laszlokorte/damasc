@@ -16,7 +16,7 @@ use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::literal::Literal;
 use crate::pattern::*;
-use crate::query::{CrossPredicate, Predicate, ProjectionQuery, DeletionQuery, UpdateQuery, TransfereQuery};
+use crate::query::{CrossPredicate, Predicate, ProjectionQuery, DeletionQuery, UpdateQuery, TransferQuery};
 use crate::statement::Statement;
 use crate::value::ValueType;
 
@@ -776,7 +776,7 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
                 )),
             ),
             |(to_bag, pattern, projection, guard, limit)| {
-                Statement::Move(to_bag, TransfereQuery{
+                Statement::Move(to_bag, TransferQuery{
                     predicate: Predicate {
                         pattern: Pattern::Capture(
                             Identifier {
@@ -802,7 +802,7 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
                 )),
             ),
             |(to_bag, limit)| {
-                Statement::Move(to_bag, TransfereQuery{
+                Statement::Move(to_bag, TransferQuery{
                     projection: Expression::Identifier(Identifier {
                         name: Cow::Borrowed("$"),
                     }),

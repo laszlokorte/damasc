@@ -8,7 +8,7 @@ use crate::{
     env::{Environment, EvalError},
     matcher::Matcher,
     pattern::Pattern,
-    query::{ProjectionQuery, DeletionQuery, UpdateQuery, Predicate, check_value, TransfereQuery},
+    query::{ProjectionQuery, DeletionQuery, UpdateQuery, Predicate, check_value, TransferQuery},
     value::Value,
 };
 
@@ -227,7 +227,7 @@ impl<'x, 'i, 's:'i, 'v:'i> ValueTransfer<'x, 'i, 's> {
     pub(crate) fn transfer<'e>(
         &'x mut self,
         env: &'e Environment<'i, 's, 'v>,
-        transfer: &'e TransfereQuery<'s>,
+        transfer: &'e TransferQuery<'s>,
     ) -> usize {
         let mut counter = 0;
         let mut matcher = Matcher {

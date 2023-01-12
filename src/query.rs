@@ -71,7 +71,7 @@ pub struct UpdateQuery<'s> {
 
 
 #[derive(Clone)]
-pub struct TransfereQuery<'s> {
+pub struct TransferQuery<'s> {
     pub predicate: Predicate<'s>,
     pub projection: Expression<'s>,
 }

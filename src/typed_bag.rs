@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::{
     bag::ValueBag,
     env::{Environment, EvalError},
-    query::{Predicate, ProjectionQuery, DeletionQuery, UpdateQuery, check_value, TransfereQuery},
+    query::{Predicate, ProjectionQuery, DeletionQuery, UpdateQuery, check_value, TransferQuery},
     value::Value, matcher::Matcher,
 };
 
@@ -87,7 +87,7 @@ impl<'x, 'i, 's, 'v> TypedTransfer<'x, 'i, 's, 'v> {
     pub(crate) fn transfer<'e>(
         &'x mut self,
         env: &'e Environment<'i, 's, 'v>,
-        transfer: &'e TransfereQuery<'s>,
+        transfer: &'e TransferQuery<'s>,
     ) -> usize {
         let mut counter = 0;
         let mut matcher = Matcher {

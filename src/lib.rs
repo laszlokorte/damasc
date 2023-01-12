@@ -17,7 +17,6 @@ pub mod typed_bag;
 pub mod value;
 pub mod wasm;
 pub mod bag_bundle;
-mod transaction;
 
 use expression::*;
 use identifier::Identifier;
