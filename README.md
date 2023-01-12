@@ -2,14 +2,14 @@
 
 Experimental expression based language inspired by a subset of ES6. The feature set focuses on object and array literals, destructuring and pattern matching. Supports only immutable value type semantics, no reference types.
 
-![Screenshot of the web REPL](./preview.png)
-
-The syntax and semantic are not a strict subset of ES6. The name is a reference to the patterns of [Damascus steel](https://en.wikipedia.org/wiki/Damascus_steel).
-
 ## Live demo
 
 Check out [damasc.laszlokorte.de](https://damasc.laszlokorte.de/) for a live demo.
 The demo is compiled to WASM and runs fully locally in the browser. Currently loading and storing data from or to a file does not work.
+
+[![Screenshot of the web REPL](./preview.png)](https://damasc.laszlokorte.de/)
+
+The syntax and semantic are not a strict subset of ES6. The name is a reference to the patterns of [Damascus steel](https://en.wikipedia.org/wiki/Damascus_steel).
 
 ## Features
 
