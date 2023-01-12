@@ -116,7 +116,7 @@ body {
 .example-list {
     display: flex;
     flex-wrap: wrap;
-    padding: 0.5em 0;
+    padding: 0 0 1em;
     gap: 0.5em;
     align-items: baseline;
     font-size: small;
@@ -223,4 +223,12 @@ footer {
     font: inherit;
     background: none;
     display: flex;
+}
+
+.explainer {
+}
+
+.explainer-head {
+    cursor: pointer;
+    padding: 0.5em;
 }
