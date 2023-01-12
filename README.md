@@ -40,6 +40,7 @@ The only operations that are allowed are:
 * in the repl variales can be stored: eg type `let x = 7` hit enter, and then later `x*x` evaluates to `49`
 * on the left side of the `=` a destructuring pattern is allowed. eg `[_,{x,...},...] = ["foo", {x:5,y:8}, true]` destructures the array on the right side and assigns the value 5 to the variable x. For more examples take a look at the [test_patterns.txt](./src/test_patterns.txt).
 * when using the `let` keyword in front of a pattern the matching variables are actually assigned. Without the `let` keyword the matches displayed but then discarded.
+* Mutability is supported via the concepts of bags/multisets that only exist at the top level. Values can be inserted into or retreived or removed from a bag.
 
 ## Not ES6
 
@@ -311,6 +312,77 @@ You can also limit the amount of objects to delete. The following command delete
 OK
 ```
 
+You can update existing values. Below you can see that there are 5 values in the bag, three of which are numbers. Using the `.change` command we try to increment all numbers. Afterwards there are still 5 values in total but all numbers have been incremented. For the other two values the operation failed so they were not affected.
+
+```
+>> .query
+2;
+3;
+4;
+"Hello";
+true;
+
+>> .change x into x+1
+CHANGED 3 items.
+
+>> .query
+3;
+4;
+5;
+"Hello";
+true;
+```
+
+You can also constrain the values to be changed by a pattern and an predicate. Below we change all arrays of length 2 where the first element is larger than the second into an array with the elements swapped:
+
+```
+>> .query
+[50, 200, ];
+[42, 23, ];
+99;
+"Hello";
+
+>> .change [x,y] into [y,x] where x>y
+CHANGED 1 items.
+
+>> .query
+[50, 200, ];
+[23, 42, ];
+99;
+"Hello";
+```
+
+As with the `.query` and `.delete` command you can limit the number of values the `.change` command operates on:
+
+```
+>> .query
+1;
+2;
+3;
+4;
+5;
+6;
+7;
+8;
+9;
+10;
+
+>> .change x into x+100 where x < 100 limit 3
+CHANGED 3 items.
+
+>> .query
+101;
+102;
+103;
+4;
+5;
+6;
+7;
+8;
+9;
+10;
+```
+
 You can create multiple distinct bags. The initial bag is called `init`. To create a new empty bag type `.bag <somename>`:
 
 ```
@@ -370,6 +442,57 @@ DELETED 1
 >> .insert {username: "Jack"}
 INSERTED 1
 ```
+
+Values can be transfered from one bag (the source) to another (the target). The source bag must be active bag (selected via `.bag thename`). In the following examples the bag named `quelle` will be used as source bag and the bag named `ziel` will be used as target. First we create the two bags:
+
+```
+>> .bag quelle
+BAG CREATED
+>> .bag ziel
+BAG CREATED
+```
+
+Then we select the `.quelle` bag and insert a few values:
+
+```
+>> .bag quelle
+SWITCHED BAG
+>> .insert 1;2;3;4;5;6
+```
+
+Now lets assume we want to transfer all values greater than 3 to the other bag. We can do so via the `.move()` command:
+
+```
+>> .move(ziel) x where x > 3
+MOVED 3 items.
+>> .query
+1;
+2;
+3;
+>> .bag ziel
+>> .query
+4;
+5;
+6;
+```
+
+As with the `.delete`, `.query` and `.change` commands we can constrain the affected values by a pattern and a predicate and limit the number of values to be moved. The command below moves at most 10 objects that consist of a `x` and `y` property of which their summed squares are below `49`:
+
+```
+>> .move(ziel) {x,y} where x*x+y*y < 49 limit 10
+```
+
+The values that are moved can also be changed during the move:
+
+```
+>> .move(ziel) {x,y} into {coords: [x,y], comment:"has been moved"} where x*x+y*y < 49 limit 10
+```
+
+For now both `.insert`, `.update` and `.move` are not transactional across multiple values. If multiple values are to be moved/inserted/update but the receiving bag does not accept some of them or a transformation fails for some of them the other values might still be update/inserted.
+
+But for each single value it is garuanteed that it is either inserted/moved/updated or not. So if during a move the target bag does not accept a value the corresponding values will *not* be removed from the source bag.
+
+One goal for the future is to implement transactional changes so that it can be guaranteed that across multiple commands either each of all value changes succeed or all changes are rejected.
 
 ## Build targets
 
