@@ -13,7 +13,6 @@ pub mod pattern;
 pub mod query;
 pub mod repl;
 pub mod statement;
-pub mod typed_bag;
 pub mod value;
 pub mod wasm;
 pub mod bag_bundle;

@@ -8,23 +8,73 @@ use crate::{
     env::{Environment, EvalError},
     matcher::Matcher,
     pattern::Pattern,
-    query::{ProjectionQuery, DeletionQuery, UpdateQuery, Predicate, check_value, TransferQuery},
-    value::Value,
+    query::{ProjectionQuery, DeletionQuery, UpdateQuery, Predicate, check_value, TransferQuery, Insertion},
+    value::Value, expression::Expression,
 };
 
 #[derive(Clone)]
-pub(crate) struct ValueBag<'s, 'v> {
+pub struct ValueBag<'i, 's, 'v> {
     pub(crate) items: Vec<Cow<'v, Value<'s, 'v>>>,
+    pub(crate) guard: Predicate<'s>,
+    env: Environment<'i, 's, 'v>,
 }
 
-impl<'s, 'v> ValueBag<'s, 'v> {
-    pub(crate) fn new() -> Self {
-        Self { items: Vec::new() }
+pub(crate) enum InsertionResult {
+    Success(usize),
+    GuardError,
+    EvalError
+}
+pub(crate) enum DeletionResult {
+    Success(usize),
+    EvalError
+}
+pub(crate) enum UpdateResult {
+    Success(usize),
+    GuardError,
+    EvalError
+}
+pub(crate) enum TransferResult {
+    Success(usize),
+    GuardError,
+    EvalError
+}
+
+impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
+    pub fn new(guard: Predicate<'s>) -> Self {
+        Self {
+            items: vec![],
+            guard,
+            env: Environment {
+                bindings: BTreeMap::new(),
+            },
+        }
     }
 
-    pub(crate) fn insert(&mut self, value: &Value<'s, 'v>) -> bool {
-        self.items.push(Cow::Owned(value.clone()));
-        true
+    pub(crate) fn insert<'e, 'x:'e>(&'x mut self, env: &'e Environment<'i, 's, 'v>, insertion: &'e Insertion<'s>) -> InsertionResult {
+        let mut counter = 0;
+        for expr in &insertion.expressions.expressions {
+            match self.insert_one(env, expr) {
+                InsertionResult::Success(_) => {counter += 1}
+                err => return err
+            }
+        }
+
+        InsertionResult::Success(counter)
+    }
+
+    pub(crate) fn insert_one<'e, 'x:'e>(&'x mut self, env: &'e Environment<'i, 's, 'v>, expression: &'e Expression<'s>) -> InsertionResult {
+        let eval_result = env.eval_expr(expression);
+        
+        if let Ok(value) = eval_result {
+            if check_value(&self.env, &self.guard, &value, self.len()) {
+                self.items.push(Cow::Owned(value.clone()));
+                InsertionResult::Success(1)
+            } else {
+                InsertionResult::GuardError
+            }
+        } else {
+            InsertionResult::EvalError
+        }
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -40,7 +90,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
         }
     }
 
-    pub(crate) fn query<'e, 'x: 'e, 'i>(
+    pub(crate) fn query<'e, 'x: 'e>(
         &'x self,
         env: &'e Environment<'i, 's, 'v>,
         query: &'e ProjectionQuery<'s>,
@@ -73,7 +123,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
         })
     }
 
-    fn cross_query_helper<'e, 'x: 'e, 'i>(
+    fn cross_query_helper<'e, 'x: 'e>(
         &'x self,
         outer: bool,
         depth: usize,
@@ -106,18 +156,22 @@ impl<'s, 'v> ValueBag<'s, 'v> {
         }))
     }
 
-    pub(crate) fn delete<'e, 'x: 'e, 'i>(
+    pub(crate) fn delete<'e, 'x: 'e>(
         &'x mut self,
         env: &'e Environment<'i, 's, 'v>,
         deletion: &'e DeletionQuery<'s>,
-    ) -> (Completion, usize) {
+    ) -> DeletionResult {
         let mut counter = 0;
+        let mut eval_error = false;
         let mut matcher = Matcher {
             env: &env.clone(),
             bindings: BTreeMap::new(),
         };
 
         self.items.retain(|item| {
+            if eval_error {
+                return true;
+            }
             if let Some(limit) = deletion.predicate.limit {
                 if limit <= counter {
                     return true;
@@ -134,9 +188,11 @@ impl<'s, 'v> ValueBag<'s, 'v> {
             } else {
                 let mut env = env.clone();
                 matcher.apply_to_env(&mut env);
-                let should_delete =
-                    matches!(env.eval_expr(&deletion.predicate.guard), Ok(Value::Boolean(true)));
-                if should_delete {
+                let Ok(Value::Boolean(shall_delete)) = env.eval_expr(&deletion.predicate.guard) else {
+                    eval_error = true;
+                    return true;
+                };
+                if shall_delete {
                     counter += 1;
                     false
                 } else {
@@ -145,23 +201,17 @@ impl<'s, 'v> ValueBag<'s, 'v> {
             }
         });
 
-        (Completion::Complete, counter)
+        if eval_error {
+            DeletionResult::EvalError
+        } else {
+            DeletionResult::Success(counter)
+        }
     }
-
-    pub(crate) fn update<'e, 'x: 'e, 'i>(
+    pub(crate) fn update<'e, 'x: 'e>(
         &'x mut self,
         env: &'e Environment<'i, 's, 'v>,
-        update: &'e UpdateQuery<'s>,
-    ) -> (Completion, usize) {
-        self.checked_update(env, update,  &Predicate::any())
-    }
-
-    pub(crate) fn checked_update<'e, 'x: 'e, 'i>(
-        &'x mut self,
-        env: &'e Environment<'i, 's, 'v>,
-        update: &'e UpdateQuery<'s>,
-        post_predicate: &Predicate<'s>
-    ) -> (Completion, usize)
+        update: &'e UpdateQuery<'s>
+    ) -> UpdateResult
       {
         let mut counter = 0;
 
@@ -175,7 +225,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
         for item in &mut self.items { 
             if let Some(limit) = update.predicate.limit {
                 if limit <= counter {
-                    return (Completion::Partial, counter)
+                    return UpdateResult::Success(counter)
                 }
             }
 
@@ -187,16 +237,18 @@ impl<'s, 'v> ValueBag<'s, 'v> {
                 let mut env = env.clone();
                 matcher.apply_to_env(&mut env);
                 let Ok(Value::Boolean(should_update)) = env.eval_expr(&update.predicate.guard) else {
-                    return (Completion::Partial, counter)
+                    return UpdateResult::EvalError;
                 };
 
                 if should_update {
                     let Ok(val) = env.eval_expr(&update.projection) else {
-                        return (Completion::Partial, counter)
+                        return UpdateResult::EvalError;
                     };
-                    if check_value(&env, post_predicate, &val, bag_size) {
+                    if check_value(&env, &self.guard, &val, bag_size) {
                         *item = Cow::Owned(val);
                         counter += 1;
+                    } else {
+                        return UpdateResult::GuardError;
                     }
                 } else {
                     continue;
@@ -204,7 +256,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
             }
 
         }
-        (Completion::Complete, counter)
+        UpdateResult::Success(counter)
     }
 
     pub(crate) fn iter<'x>(&'x self) -> std::slice::Iter<'x, std::borrow::Cow<'v, Value<'s, 'v>>> {
@@ -212,13 +264,12 @@ impl<'s, 'v> ValueBag<'s, 'v> {
     }
 }
 
-pub(crate) struct ValueTransfer<'x, 'i, 's> {
-    source: &'x mut ValueBag<'i, 's>,
-    target: &'x mut ValueBag<'i, 's>,
+pub(crate) struct ValueBagTransfer<'x, 'i, 's, 'v> {
+    source: &'x mut ValueBag<'i, 's, 'v>,
+    target: &'x mut ValueBag<'i, 's, 'v>,
 }
-
-impl<'x, 'i, 's:'i, 'v:'i> ValueTransfer<'x, 'i, 's> {
-    pub(crate) fn new(source: &'x mut ValueBag<'i, 's>, target: &'x mut ValueBag<'i, 's>) -> Self {
+impl<'x, 'i, 's, 'v> ValueBagTransfer<'x, 'i, 's, 'v> {
+    pub(crate) fn new(source: &'x mut ValueBag<'i, 's, 'v>, target: &'x mut ValueBag<'i, 's, 'v>) -> Self {
         Self {
             source,
             target,
@@ -229,15 +280,19 @@ impl<'x, 'i, 's:'i, 'v:'i> ValueTransfer<'x, 'i, 's> {
         &'x mut self,
         env: &'e Environment<'i, 's, 'v>,
         transfer: &'e TransferQuery<'s>,
-    ) -> (Completion, usize) {
-        let mut counter = 0;
-        let mut state = Completion::Complete;
+    ) -> TransferResult  {
+        let mut counter  : usize= 0;
+        let mut short_circuit:Option<TransferResult> = None;
         let mut matcher = Matcher {
             env: &env.clone(),
             bindings: BTreeMap::new(),
         };
 
         self.source.items.retain(|item| {
+            if short_circuit.is_some() {
+                return true;
+            }
+
             if let Some(limit) = transfer.predicate.limit {
                 if limit <= counter {
                     return true;
@@ -255,20 +310,23 @@ impl<'x, 'i, 's:'i, 'v:'i> ValueTransfer<'x, 'i, 's> {
                 let mut env = env.clone();
                 matcher.apply_to_env(&mut env);
                 let Ok(Value::Boolean(shall_transfer)) = env.eval_expr(&transfer.predicate.guard) else {
-                    state = Completion::Partial;
+                    short_circuit = Some(TransferResult::EvalError);
                     return true;
                 };
-                
                 if shall_transfer {
-                    let Ok(target_value) = env.eval_expr(&transfer.projection) else {
-                        return true;
-                    };
-                    if self.target.insert(&target_value) {
-                        counter += 1;
-                        state = Completion::Partial;
-                        false
-                    } else {
-                        true
+                    match self.target.insert_one(&env, &transfer.projection) {
+                        InsertionResult::Success(_) => {
+                            counter += 1;
+                            false
+                        },
+                        InsertionResult::EvalError => {
+                            short_circuit = Some(TransferResult::EvalError);
+                            true
+                        }
+                        InsertionResult::GuardError => {
+                            short_circuit = Some(TransferResult::GuardError);
+                            true
+                        }
                     }
                 } else {
                     true
@@ -276,12 +334,7 @@ impl<'x, 'i, 's:'i, 'v:'i> ValueTransfer<'x, 'i, 's> {
             }
         });
 
-        (state, counter)
+        short_circuit.unwrap_or(TransferResult::Success(counter))
     }
 }
 
-
-pub enum Completion {
-    Complete,
-    Partial,
-}

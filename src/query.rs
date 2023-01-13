@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::{expression::Expression, pattern::Pattern, literal::Literal, matcher::Matcher, env::Environment, value::Value};
+use crate::{expression::{Expression, ExpressionSet}, pattern::Pattern, literal::Literal, matcher::Matcher, env::Environment, value::Value};
 
 #[derive(Clone)]
 pub struct ProjectionQuery<'s> {
@@ -100,4 +100,10 @@ pub(crate) fn check_value<'s,'v>(env: &Environment<'_, 's, 'v>, pred: &Predicate
     };
 
     true
+}
+
+
+#[derive(Clone)]
+pub struct Insertion<'s> {
+    pub(crate) expressions: ExpressionSet<'s>
 }

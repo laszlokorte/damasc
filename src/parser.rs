@@ -16,7 +16,7 @@ use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::literal::Literal;
 use crate::pattern::*;
-use crate::query::{CrossPredicate, Predicate, ProjectionQuery, DeletionQuery, UpdateQuery, TransferQuery};
+use crate::query::{CrossPredicate, Predicate, ProjectionQuery, DeletionQuery, UpdateQuery, TransferQuery, Insertion};
 use crate::statement::Statement;
 use crate::value::ValueType;
 
@@ -721,7 +721,7 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
         )),
         map(
             preceded(ws(tag(".insert ")), expression_bag),
-            Statement::Insert,
+            |expressions| Statement::Insert(Insertion{expressions: ExpressionSet{expressions}}),
         ),
         map(preceded(ws(tag(".pop ")), full_expression), Statement::Pop),
         map(

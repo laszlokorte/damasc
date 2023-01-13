@@ -5,7 +5,7 @@ use crate::{
     expression::{Expression, ExpressionSet},
     identifier::Identifier,
     pattern::Pattern,
-    query::{Predicate, ProjectionQuery, DeletionQuery, UpdateQuery, TransferQuery},
+    query::{Predicate, ProjectionQuery, DeletionQuery, UpdateQuery, TransferQuery, Insertion},
 };
 
 #[derive(Clone)]
@@ -21,7 +21,7 @@ pub enum Statement<'a, 'b> {
     Pattern(Pattern<'b>),
     AssignSet(AssignmentSet<'a, 'b>),
     MatchSet(AssignmentSet<'a, 'b>),
-    Insert(Vec<Expression<'b>>),
+    Insert(Insertion<'b>),
     Pop(Expression<'b>),
     Query(ProjectionQuery<'a>),
     Deletion(DeletionQuery<'a>),
