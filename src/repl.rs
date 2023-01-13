@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::File;
 use std::io::{self, BufRead, LineWriter};
 
-use crate::bag_bundle::BagBundle;
+use crate::bag_bundle::{BagBundle, TransactionError};
 use crate::env::{Environment};
 use crate::expression::*;
 use crate::identifier::Identifier;
@@ -83,6 +83,7 @@ pub enum ReplError {
     IoError,
     Exit,
     BagError,
+    TranscationAborted,
 }
 
 impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
@@ -137,18 +138,29 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                         size,
                         guard
                     )));
+                }).map_err(|e| {
+                    match e {
+                        TransactionError::Failed(e) => e,
+                        TransactionError::Aborted => ReplError::TranscationAborted,
+                    }
                 })
             }
             Statement::ListBags => {
                 Transaction::run(&mut self.bag_bundle, |t| {
                     Ok(ReplOutput::Notice(format!(
                         "Bags: {}",
-                        t.bag_names()
+                        t.bag_names::<ReplError>()
+                            .map_err(|_| ReplError::TranscationAborted)?
                             .iter()
                             .map(|i| i.name.as_ref())
                             .collect::<Vec<_>>()
                             .join(", ")
                     )))
+                }).map_err(|e| {
+                    match e {
+                        TransactionError::Failed(e) => e,
+                        TransactionError::Aborted => ReplError::TranscationAborted,
+                    }
                 })
             }
             Statement::UseBag(bag_id, pred) => {
@@ -184,7 +196,7 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 };
                 let lines = io::BufReader::new(file).lines();
 
-                let result = Transaction::run(&mut self.bag_bundle, |t| {
+                Transaction::run(&mut self.bag_bundle, |t| {
                     t.insert(&self.current_bag, lines.map(|l| {
                         let Ok(line) = l else {
                             return Err(ReplError::ReadError);
@@ -199,16 +211,18 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                         Ok(value)
                     }).collect::<Result<Vec<_>,_>>()?.into_iter())
                     .map_err(|_|ReplError::BagError)
-                });
-
-                match result {
-                    Ok(count) => Ok(ReplOutput::Notice(format!(
+                }).map_err(|e| {
+                    match e {
+                        TransactionError::Failed(e) => e,
+                        TransactionError::Aborted => ReplError::TranscationAborted,
+                    }
+                }).map(|count| {
+                    ReplOutput::Notice(format!(
                         "Imported {} values from file '{filename}' into current bag({})",
                         count,
                         self.current_bag
-                    ))),
-                    Err(_) => Err(ReplError::BagError),
-                }
+                    ))
+                })
             }
             Statement::Export(filename) => {
                 use std::io::Write;
@@ -227,6 +241,11 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                         "Current bag({}) written to file: {filename}",
                         self.current_bag
                     )));
+                }).map_err(|e| {
+                    match e {
+                        TransactionError::Failed(e) => e,
+                        TransactionError::Aborted => ReplError::TranscationAborted,
+                    }
                 })
             }
             Statement::Insert(expressions) => {
@@ -259,6 +278,11 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                     .collect::<Result<Vec<_>, _>>()
                     .map(ReplOutput::Values)
                     .map_err(|_| ReplError::EvalError)
+                }).map_err(|e| {
+                    match e {
+                        TransactionError::Failed(e) => e,
+                        TransactionError::Aborted => ReplError::TranscationAborted,
+                    }
                 })
             }
             Statement::Deletion(deletion) => {
@@ -266,6 +290,11 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                     t.delete(&self.current_bag, &self.env, &deletion)
                     .map_err(|_| ReplError::BagError)
                     .map(ReplOutput::Deleted)
+                }).map_err(|e| {
+                    match e {
+                        TransactionError::Failed(e) => e,
+                        TransactionError::Aborted => ReplError::TranscationAborted,
+                    }
                 })
             }
             Statement::Update(update) => {
@@ -273,6 +302,11 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                     t.update(&self.current_bag, &self.env, &update)
                     .map_err(|_| ReplError::BagError)
                     .map(ReplOutput::Updated)
+                }).map_err(|e| {
+                    match e {
+                        TransactionError::Failed(e) => e,
+                        TransactionError::Aborted => ReplError::TranscationAborted,
+                    }
                 })
             }
             Statement::Move(to, query) => {
@@ -280,6 +314,11 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                     t.transfer(&self.current_bag, &to, &self.env, query)
                     .map_err(|_| ReplError::BagError)
                     .map(ReplOutput::Transferd)
+                }).map_err(|e| {
+                    match e {
+                        TransactionError::Failed(e) => e,
+                        TransactionError::Aborted => ReplError::TranscationAborted,
+                    }
                 })
             },
             Statement::Pop(expression) => {
@@ -293,7 +332,12 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                         Ok(true) => Ok(ReplOutput::Ack),
                         Err(_) => Err(ReplError::BagError),
                     }
-                })                
+                }).map_err(|e| {
+                    match e {
+                        TransactionError::Failed(e) => e,
+                        TransactionError::Aborted => ReplError::TranscationAborted,
+                    }
+                })
             }
             Statement::Inspect(ex) => {
                 return Ok(ReplOutput::Notice(format!("{ex:?}")));

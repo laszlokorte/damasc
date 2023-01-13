@@ -122,62 +122,122 @@ pub(crate) enum BagBundleError{
     BagAlreadyExists,
     BagDoesNotExist,
 }
-pub(crate) struct Transaction<'b, 'i, 's, 'v> {
-    working_copy: Cow<'b, BagBundle<'b, 'i, 's, 'v>>,
+pub(crate) enum Transaction<'b, 'i, 's, 'v> {
+    Clean {
+        working_copy: Cow<'b, BagBundle<'b, 'i, 's, 'v>>
+    },
+    Dirty {
+        working_copy: Cow<'b, BagBundle<'b, 'i, 's, 'v>>
+    },
+    Failed
+}
+
+pub(crate) enum TransactionError<E> {
+    Aborted,
+    Failed(E),
 }
 
 impl<'b, 'i, 's, 'v> Transaction<'b, 'i, 's, 'v> {
+    fn get_working_copy<E:Sized>(&self) -> Result<&Cow<'b, BagBundle<'b, 'i, 's, 'v>>, TransactionError<E>> {
+        match self {
+            Transaction::Clean { working_copy } => Ok(working_copy),
+            Transaction::Dirty { working_copy } => Ok(working_copy),
+            Transaction::Failed => Err(TransactionError::Aborted),
+        }
+    }
+
+    fn get_working_copy_mut<E:Sized>(&mut self) -> Result<&mut Cow<'b, BagBundle<'b, 'i, 's, 'v>>, TransactionError<E>> {
+        match self {
+            Transaction::Clean { working_copy } => Ok(working_copy),
+            Transaction::Dirty { working_copy } => Ok(working_copy),
+            Transaction::Failed => Err(TransactionError::Aborted),
+        }
+    }
+
     fn new(snapshot: &BagBundle<'b, 'i, 's, 'v>) -> Self {
-        Self {
+        Self::Clean {
             working_copy: Cow::Owned(snapshot.clone()),
         }
     }
 
-    pub(crate) fn run<F,T,E>(snapshot: &mut BagBundle<'b, 'i, 's, 'v>, f: F) -> Result<T,E> where F: FnOnce(&mut Self)->Result<T,E> {
+    pub(crate) fn run<'x, F,T,E:Sized>(snapshot: &'x mut BagBundle<'b, 'i, 's, 'v>, f: F) -> Result<T,TransactionError<E>> 
+        where F: FnOnce(&mut Self)->Result<T,E> {
         let mut trans = Transaction::new(snapshot);
-        let r = f(&mut trans)?;
-        *snapshot = trans.commit();
-        Ok(r)
+        let r = f(&mut trans).map_err(TransactionError::Failed)?;
+        
+        if let Ok(new_snapshot) = trans.commit::<E>() {
+            *snapshot = new_snapshot;
+            Ok(r)
+        } else {
+            Err(TransactionError::Aborted)
+        }
     }
 
-    pub(crate) fn bag_names(&self) -> BTreeSet<Identifier<'v>> {
-        self.working_copy.bag_names()
+    pub(crate) fn bag_names<T:Sized>(&self) -> Result<BTreeSet<Identifier<'v>>, TransactionError<T>> {
+        let working_copy = self.get_working_copy()?;
+
+        Ok(working_copy.bag_names())
     }
+    
+    fn fail_or_dirty<A,B>(&mut self, result: Result<A,B>) -> Result<A,B> {
+        if result.is_err() {
+            *self = Self::Failed;
+        } else if let Self::Clean {working_copy: wc} = self {
+            *self = Self::Dirty { working_copy: wc.clone() }
+        }
+
+        result
+    } 
 
     pub(crate) fn insert(&mut self, 
         bag: &Identifier<'s>, 
-        values: impl Iterator<Item=Value<'s, 'v>>) -> Result<usize, BagBundleError> {
-        
-        self.working_copy.to_mut().insert(bag, values)
+        values: impl Iterator<Item=Value<'s, 'v>>) -> Result<usize, TransactionError<BagBundleError>> {
+        let working_copy = self.get_working_copy_mut()?;
+
+        working_copy.to_mut().insert(bag, values).map_err(TransactionError::Failed)
     }
 
     pub(crate) fn update<'e>(&mut self, 
         bag: &Identifier<'s>, 
         env: &'e Environment<'i, 's, 'v>,
-        update: &'e UpdateQuery<'s>) -> Result<usize, BagBundleError>  {
+        update: &'e UpdateQuery<'s>) -> Result<usize, TransactionError<BagBundleError>>  {
+        let working_copy = self.get_working_copy_mut()?;
+
+        let result = working_copy.to_mut().update(bag, env, update).map_err(TransactionError::Failed);
         
-        self.working_copy.to_mut().update(bag, env, update)
+        self.fail_or_dirty(result)
     }
 
     pub(crate) fn delete<'e>(&mut self, 
         bag: &Identifier<'s>, 
         env: &'e Environment<'i, 's, 'v>,
-        deletion: &'e DeletionQuery<'s>) -> Result<usize, BagBundleError> {
+        deletion: &'e DeletionQuery<'s>) -> Result<usize, TransactionError<BagBundleError>> {
         
+        let working_copy = self.get_working_copy_mut()?;
 
-        self.working_copy.to_mut().delete(bag, env, deletion)
+        let result = working_copy.to_mut().delete(bag, env, deletion).map_err(TransactionError::Failed);
+
+        self.fail_or_dirty(result)
     }
 
-    pub(crate) fn create_bag(&mut self, bag_name: Identifier<'s>, predicate: Predicate<'s>) -> Result<(), BagBundleError> {
-        self.working_copy.to_mut().create_bag(bag_name, predicate)
+    pub(crate) fn create_bag(&mut self, bag_name: Identifier<'s>, predicate: Predicate<'s>) -> Result<(), TransactionError<BagBundleError>> {
+        let working_copy = self.get_working_copy_mut()?;
+
+        let result = working_copy.to_mut().create_bag(bag_name, predicate).map_err(TransactionError::Failed);
+
+        self.fail_or_dirty(result)
     }
 
-    pub(crate) fn get_bag_info(&self, bag: &Identifier<'s>) -> Result<(usize, &Predicate), BagBundleError> {
-        self.working_copy.get_bag_info(bag)
+    pub(crate) fn get_bag_info(&mut self, bag: &Identifier<'s>) -> Result<(usize, &Predicate), TransactionError<BagBundleError>> {
+        let working_copy = self.get_working_copy()?;
+
+        working_copy.get_bag_info(bag).map_err(TransactionError::Failed)
     }
 
-    pub(crate) fn read<'x>(&'x self, bag: &'x Identifier) -> Result<impl Iterator<Item = &Cow<'v, Value<'s, 'v>>>, BagBundleError> {
-        self.working_copy.read(bag)
+    pub(crate) fn read<'x>(&'x self, bag: &'x Identifier) -> Result<impl Iterator<Item = &Cow<'v, Value<'s, 'v>>>, TransactionError<BagBundleError>> {
+        let working_copy = self.get_working_copy()?;
+
+        working_copy.read(bag).map_err(TransactionError::Failed)
     }
 
     pub(crate) fn query<'e, 'x: 'e>(
@@ -185,22 +245,36 @@ impl<'b, 'i, 's, 'v> Transaction<'b, 'i, 's, 'v> {
         bag: &'x Identifier,
         env: &'e Environment<'i, 's, 'v>,
         query: &'e ProjectionQuery<'s>,
-    ) -> Result<impl Iterator<Item = Result<Value<'s, 'v>, EvalError>> + 'e, BagBundleError> {
-        self.working_copy.query(bag, env, query)
+    ) -> Result<impl Iterator<Item = Result<Value<'s, 'v>, EvalError>> + 'e, TransactionError<BagBundleError>> {
+        let working_copy = self.get_working_copy()?;
+
+        working_copy.query(bag, env, query).map_err(TransactionError::Failed)
     }
 
     pub(crate) fn transfer<'e>(&mut self, source: &Identifier<'s>, sink: &Identifier<'s>, 
         env: &'e Environment<'i, 's, 'v>,
-        query: TransferQuery<'s>) -> Result<usize, BagBundleError> {
+        query: TransferQuery<'s>) -> Result<usize, TransactionError<BagBundleError>> {
         
-        self.working_copy.to_mut().transfer(source, sink, env, query)
+        let working_copy = self.get_working_copy_mut()?;
+
+        let result = working_copy.to_mut().transfer(source, sink, env, query).map_err(TransactionError::Failed);
+
+        self.fail_or_dirty(result)
     }
 
-    pub(crate) fn pop<'x>(&mut self, bag: &Identifier<'s>, value: &'x Value<'s,'v>) -> Result<bool, BagBundleError> {
-        self.working_copy.to_mut().pop(bag, value)
+    pub(crate) fn pop<'x>(&mut self, bag: &Identifier<'s>, value: &'x Value<'s,'v>) -> Result<bool, TransactionError<BagBundleError>> {
+        let working_copy = self.get_working_copy_mut()?;
+
+        let result = working_copy.to_mut().pop(bag, value).map_err(TransactionError::Failed);
+
+        self.fail_or_dirty(result)
     }
 
-    pub(crate) fn commit(self) -> BagBundle<'b, 'i, 's, 'v> {
-        self.working_copy.as_ref().to_owned()
+    pub(crate) fn commit<E>(self) -> Result<BagBundle<'b, 'i, 's, 'v>, TransactionError<E>> {
+        match self {
+            Transaction::Clean { working_copy } => Ok(working_copy.as_ref().to_owned()),
+            Transaction::Dirty { working_copy } => Ok(working_copy.as_ref().to_owned()),
+            Transaction::Failed => Err(TransactionError::Aborted),
+        }
     }
 }
