@@ -77,7 +77,13 @@ pub struct TransferQuery<'s> {
 }
 
 
-pub(crate) fn check_value<'s,'v>(env: &Environment<'_, 's, 'v>, pred: &Predicate<'s>, val: &Value<'s, 'v>) -> bool {
+pub(crate) fn check_value<'s,'v>(env: &Environment<'_, 's, 'v>, pred: &Predicate<'s>, val: &Value<'s, 'v>, count: usize) -> bool {
+    if let Some(l) = pred.limit {
+        if l <= count {
+            return false;
+        }
+    }
+    
     let mut matcher = Matcher {
         env,
         bindings: BTreeMap::new(),

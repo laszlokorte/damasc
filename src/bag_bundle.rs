@@ -1,6 +1,6 @@
 use std::{collections::{HashMap, BTreeSet}, borrow::Cow};
 
-use crate::{identifier::Identifier, typed_bag::{TypedBag, TypedTransfer}, value::Value, env::{Environment, EvalError}, query::{UpdateQuery, DeletionQuery, Predicate, ProjectionQuery, TransferQuery}};
+use crate::{identifier::Identifier, typed_bag::{TypedBag, TypedTransfer}, value::Value, env::{Environment, EvalError}, query::{UpdateQuery, DeletionQuery, Predicate, ProjectionQuery, TransferQuery}, bag::Completion};
 
 #[derive(Clone)]
 pub struct BagBundle<'b, 'i, 's, 'v> {
@@ -20,7 +20,7 @@ impl<'b, 'i, 's, 'v> BagBundle<'b, 'i, 's, 'v> {
 
     fn insert(&mut self, 
         bag: &Identifier<'s>, 
-        values: impl Iterator<Item=Value<'s, 'v>>) -> Result<usize, BagBundleError> {
+        values: impl Iterator<Item=Value<'s, 'v>>) -> Result<(Completion, usize), BagBundleError> {
         let Some(bag) = self.bags.get_mut(bag) else {
             return Err(BagBundleError::BagDoesNotExist)
         };
@@ -30,16 +30,18 @@ impl<'b, 'i, 's, 'v> BagBundle<'b, 'i, 's, 'v> {
         for v in values {
             if bag.to_mut().insert(&v) {
                 counter+=1;
+            } else {
+                return Ok((Completion::Partial, counter))
             }
         }
 
-        Ok(counter)
+        Ok((Completion::Complete, counter))
     }
 
     fn update<'e>(&mut self, 
         bag: &Identifier<'s>, 
         env: &'e Environment<'i, 's, 'v>,
-        update: &'e UpdateQuery<'s>) -> Result<usize, BagBundleError>  {
+        update: &'e UpdateQuery<'s>) -> Result<(Completion, usize), BagBundleError>  {
         let Some(bag) = self.bags.get_mut(bag) else {
             return Err(BagBundleError::BagDoesNotExist)
         };
@@ -50,7 +52,7 @@ impl<'b, 'i, 's, 'v> BagBundle<'b, 'i, 's, 'v> {
     fn delete<'e>(&mut self, 
         bag: &Identifier<'s>, 
         env: &'e Environment<'i, 's, 'v>,
-        deletion: &'e DeletionQuery<'s>) -> Result<usize, BagBundleError> {
+        deletion: &'e DeletionQuery<'s>) -> Result<(Completion, usize), BagBundleError> {
         let Some(bag) = self.bags.get_mut(bag) else {
             return Err(BagBundleError::BagDoesNotExist)
         };
@@ -98,7 +100,7 @@ impl<'b, 'i, 's, 'v> BagBundle<'b, 'i, 's, 'v> {
 
     fn transfer<'e>(&mut self, source: &Identifier<'s>, sink: &Identifier<'s>, 
         env: &'e Environment<'i, 's, 'v>,
-        query: TransferQuery<'s>) -> Result<usize, BagBundleError> {
+        query: TransferQuery<'s>) -> Result<(Completion, usize), BagBundleError> {
         let Some([bag_from, bag_to]) = self.bags.get_many_mut([source, sink]) else {
             return Err(BagBundleError::BagDoesNotExist);
         };
@@ -106,7 +108,6 @@ impl<'b, 'i, 's, 'v> BagBundle<'b, 'i, 's, 'v> {
         let mut transfer = TypedTransfer::new(bag_from.to_mut(), bag_to.to_mut());
         
         Ok(transfer.transfer(env, &query))
-
     }
 
     fn pop<'x>(&mut self, bag: &Identifier<'s>, value: &'x Value<'s,'v>) -> Result<bool, BagBundleError> {
@@ -121,6 +122,7 @@ impl<'b, 'i, 's, 'v> BagBundle<'b, 'i, 's, 'v> {
 pub(crate) enum BagBundleError{
     BagAlreadyExists,
     BagDoesNotExist,
+    OperationError,
 }
 pub(crate) enum Transaction<'b, 'i, 's, 'v> {
     Clean {
@@ -194,7 +196,14 @@ impl<'b, 'i, 's, 'v> Transaction<'b, 'i, 's, 'v> {
         values: impl Iterator<Item=Value<'s, 'v>>) -> Result<usize, TransactionError<BagBundleError>> {
         let working_copy = self.get_working_copy_mut()?;
 
-        working_copy.to_mut().insert(bag, values).map_err(TransactionError::Failed)
+        let result = working_copy.to_mut().insert(bag, values).and_then(|(completion, size)| {
+            match completion {
+                Completion::Complete => Ok(size),
+                Completion::Partial => Err(BagBundleError::OperationError)
+            }
+        }).map_err(TransactionError::Failed);
+
+        self.fail_or_dirty(result)
     }
 
     pub(crate) fn update<'e>(&mut self, 
@@ -203,7 +212,12 @@ impl<'b, 'i, 's, 'v> Transaction<'b, 'i, 's, 'v> {
         update: &'e UpdateQuery<'s>) -> Result<usize, TransactionError<BagBundleError>>  {
         let working_copy = self.get_working_copy_mut()?;
 
-        let result = working_copy.to_mut().update(bag, env, update).map_err(TransactionError::Failed);
+        let result = working_copy.to_mut().update(bag, env, update).and_then(|(completion, size)| {
+            match completion {
+                Completion::Complete => Ok(size),
+                Completion::Partial => Err(BagBundleError::OperationError)
+            }
+        }).map_err(TransactionError::Failed);
         
         self.fail_or_dirty(result)
     }
@@ -215,7 +229,12 @@ impl<'b, 'i, 's, 'v> Transaction<'b, 'i, 's, 'v> {
         
         let working_copy = self.get_working_copy_mut()?;
 
-        let result = working_copy.to_mut().delete(bag, env, deletion).map_err(TransactionError::Failed);
+        let result = working_copy.to_mut().delete(bag, env, deletion).and_then(|(completion, size)| {
+            match completion {
+                Completion::Complete => Ok(size),
+                Completion::Partial => Err(BagBundleError::OperationError)
+            }
+        }).map_err(TransactionError::Failed);
 
         self.fail_or_dirty(result)
     }
@@ -257,7 +276,12 @@ impl<'b, 'i, 's, 'v> Transaction<'b, 'i, 's, 'v> {
         
         let working_copy = self.get_working_copy_mut()?;
 
-        let result = working_copy.to_mut().transfer(source, sink, env, query).map_err(TransactionError::Failed);
+        let result = working_copy.to_mut().transfer(source, sink, env, query).and_then(|(completion, size)| {
+            match completion {
+                Completion::Complete => Ok(size),
+                Completion::Partial => Err(BagBundleError::OperationError)
+            }
+        }).map_err(TransactionError::Failed);
 
         self.fail_or_dirty(result)
     }

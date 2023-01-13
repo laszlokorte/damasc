@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    bag::ValueBag,
+    bag::{ValueBag, Completion},
     env::{Environment, EvalError},
     query::{Predicate, ProjectionQuery, DeletionQuery, UpdateQuery, check_value, TransferQuery},
     value::Value, matcher::Matcher,
@@ -26,7 +26,7 @@ impl<'i, 's, 'v> TypedBag<'i, 's, 'v> {
     }
 
     pub fn insert(&mut self, value: &Value<'s, 'v>) -> bool {
-        if check_value(&self.env, &self.guard, value) {
+        if check_value(&self.env, &self.guard, value, self.bag.len()) {
             self.bag.insert(value);
             true
         } else {
@@ -50,7 +50,7 @@ impl<'i, 's, 'v> TypedBag<'i, 's, 'v> {
         &'x mut self,
         env: &'e Environment<'i, 's, 'v>,
         deletion: &'e DeletionQuery<'s>,
-    ) -> usize {
+    ) -> (Completion, usize) {
         self.bag.delete(env, deletion)
     }
     
@@ -58,7 +58,7 @@ impl<'i, 's, 'v> TypedBag<'i, 's, 'v> {
         &'x mut self,
         env: &'e Environment<'i, 's, 'v>,
         deletion: &'e UpdateQuery<'s>,
-    ) -> usize {
+    ) -> (Completion, usize) {
         self.bag.checked_update(env, deletion, 
             &self.guard)
     }
@@ -88,8 +88,9 @@ impl<'x, 'i, 's, 'v> TypedTransfer<'x, 'i, 's, 'v> {
         &'x mut self,
         env: &'e Environment<'i, 's, 'v>,
         transfer: &'e TransferQuery<'s>,
-    ) -> usize {
+    ) -> (Completion, usize)  {
         let mut counter = 0;
+        let mut state = Completion::Complete;
         let mut matcher = Matcher {
             env: &env.clone(),
             bindings: BTreeMap::new(),
@@ -116,12 +117,14 @@ impl<'x, 'i, 's, 'v> TypedTransfer<'x, 'i, 's, 'v> {
                     matches!(env.eval_expr(&transfer.predicate.guard), Ok(Value::Boolean(true)));
                 if shall_transfer {
                     let Ok(target_value) = env.eval_expr(&transfer.projection) else {
+                        state = Completion::Partial;
                         return true;
                     };
                     if self.target.insert(&target_value) {
                         counter += 1;
                         false
                     } else {
+                        state = Completion::Partial;
                         true
                     }
                 } else {
@@ -130,6 +133,6 @@ impl<'x, 'i, 's, 'v> TypedTransfer<'x, 'i, 's, 'v> {
             }
         });
 
-        counter
+        (state, counter)
     }
 }

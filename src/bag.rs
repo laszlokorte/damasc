@@ -110,7 +110,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
         &'x mut self,
         env: &'e Environment<'i, 's, 'v>,
         deletion: &'e DeletionQuery<'s>,
-    ) -> usize {
+    ) -> (Completion, usize) {
         let mut counter = 0;
         let mut matcher = Matcher {
             env: &env.clone(),
@@ -145,14 +145,14 @@ impl<'s, 'v> ValueBag<'s, 'v> {
             }
         });
 
-        counter
+        (Completion::Complete, counter)
     }
 
     pub(crate) fn update<'e, 'x: 'e, 'i>(
         &'x mut self,
         env: &'e Environment<'i, 's, 'v>,
         update: &'e UpdateQuery<'s>,
-    ) -> usize {
+    ) -> (Completion, usize) {
         self.checked_update(env, update,  &Predicate::any())
     }
 
@@ -161,7 +161,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
         env: &'e Environment<'i, 's, 'v>,
         update: &'e UpdateQuery<'s>,
         post_predicate: &Predicate<'s>
-    ) -> usize
+    ) -> (Completion, usize)
       {
         let mut counter = 0;
 
@@ -170,30 +170,31 @@ impl<'s, 'v> ValueBag<'s, 'v> {
             bindings: BTreeMap::new(),
         };
 
+        let bag_size = self.items.len();
+
         for item in &mut self.items { 
             if let Some(limit) = update.predicate.limit {
                 if limit <= counter {
-                    break;
+                    return (Completion::Partial, counter)
                 }
             }
 
             matcher.clear();
 
-            if !matches!(
-                matcher.match_pattern(&update.predicate.pattern, item.as_ref()),
-                Ok(())
-            ) {
+            if matches!(matcher.match_pattern(&update.predicate.pattern, item.as_ref()), Ok(())) {
                 continue;
             } else {
                 let mut env = env.clone();
                 matcher.apply_to_env(&mut env);
-                let should_delete =
-                    matches!(env.eval_expr(&update.predicate.guard), Ok(Value::Boolean(true)));
-                if should_delete {
+                let Ok(Value::Boolean(should_update)) = env.eval_expr(&update.predicate.guard) else {
+                    return (Completion::Partial, counter)
+                };
+
+                if should_update {
                     let Ok(val) = env.eval_expr(&update.projection) else {
-                        continue;
+                        return (Completion::Partial, counter)
                     };
-                    if check_value(&env, post_predicate, &val) {
+                    if check_value(&env, post_predicate, &val, bag_size) {
                         *item = Cow::Owned(val);
                         counter += 1;
                     }
@@ -203,7 +204,7 @@ impl<'s, 'v> ValueBag<'s, 'v> {
             }
 
         }
-        counter
+        (Completion::Complete, counter)
     }
 
     pub(crate) fn iter<'x>(&'x self) -> std::slice::Iter<'x, std::borrow::Cow<'v, Value<'s, 'v>>> {
@@ -228,8 +229,9 @@ impl<'x, 'i, 's:'i, 'v:'i> ValueTransfer<'x, 'i, 's> {
         &'x mut self,
         env: &'e Environment<'i, 's, 'v>,
         transfer: &'e TransferQuery<'s>,
-    ) -> usize {
+    ) -> (Completion, usize) {
         let mut counter = 0;
+        let mut state = Completion::Complete;
         let mut matcher = Matcher {
             env: &env.clone(),
             bindings: BTreeMap::new(),
@@ -252,14 +254,18 @@ impl<'x, 'i, 's:'i, 'v:'i> ValueTransfer<'x, 'i, 's> {
             } else {
                 let mut env = env.clone();
                 matcher.apply_to_env(&mut env);
-                let shall_transfer =
-                    matches!(env.eval_expr(&transfer.predicate.guard), Ok(Value::Boolean(true)));
+                let Ok(Value::Boolean(shall_transfer)) = env.eval_expr(&transfer.predicate.guard) else {
+                    state = Completion::Partial;
+                    return true;
+                };
+                
                 if shall_transfer {
                     let Ok(target_value) = env.eval_expr(&transfer.projection) else {
                         return true;
                     };
                     if self.target.insert(&target_value) {
                         counter += 1;
+                        state = Completion::Partial;
                         false
                     } else {
                         true
@@ -270,6 +276,12 @@ impl<'x, 'i, 's:'i, 'v:'i> ValueTransfer<'x, 'i, 's> {
             }
         });
 
-        counter
+        (state, counter)
     }
+}
+
+
+pub enum Completion {
+    Complete,
+    Partial,
 }

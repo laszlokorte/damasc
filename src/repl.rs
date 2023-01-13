@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::File;
 use std::io::{self, BufRead, LineWriter};
 
-use crate::bag_bundle::{BagBundle, TransactionError};
+use crate::bag_bundle::{BagBundle, TransactionError, BagBundleError};
 use crate::env::{Environment};
 use crate::expression::*;
 use crate::identifier::Identifier;
@@ -133,7 +133,7 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                     };
     
                     return Ok(ReplOutput::Notice(format!(
-                        "Current Bag: {}, size: {}, constrain: {}",
+                        "Current Bag: {}, size: {}, constraint: {}",
                         self.current_bag,
                         size,
                         guard
@@ -167,14 +167,12 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 self.current_bag = bag_id.clone();
                 let wants_create = pred.is_some();
                 
-                
-
                 match Transaction::run(&mut self.bag_bundle, |t| {
-                    t.create_bag(bag_id.clone(), Predicate {
+                    t.create_bag(bag_id.clone(), pred.unwrap_or(Predicate {
                         pattern: pattern("_").unwrap().1,
                         guard: full_expression("true").unwrap().1,
                         limit: None,
-                    })
+                    }))
                 }) {
                     Ok(_) => {
                         return Ok(ReplOutput::Notice("BAG CREATED".into()));

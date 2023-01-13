@@ -214,7 +214,6 @@ async fn cli(repl_mutex: Arc<Mutex<Repl<'_, '_, '_, '_>>>) -> Result<(), Error> 
             println!("No previous history.");
         }
     
-
         println!("Starting REPL because feature 'cli' is enabled.");
         println!("press CTRL-D to exit.");
         println!(".bag");
