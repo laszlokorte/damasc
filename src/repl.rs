@@ -170,8 +170,11 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 match creation {
                     Ok(_) => {
                         let Ok(b) = trans.commit().map_err(|_|ReplError::TranscationAborted) else {
-                            return Ok(ReplOutput::Notice("ALREADY EXISTS, SWITCHED BAG".into()));
-
+                            if wants_create {
+                                return Ok(ReplOutput::Notice("ALREADY EXISTS, SWITCHED BAG".into()));
+                            } else {
+                                return Ok(ReplOutput::Notice("SWITCHED BAG".into()));
+                            }
                         };
                         self.bag_bundle = b;
 
