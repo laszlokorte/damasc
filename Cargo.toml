@@ -7,19 +7,17 @@ default-run="cli"
 [[bin]]
 name = "cli"
 required-features = ["cli"]
-default-features = ["cli"]
 
 [[bin]]
 name = "web"
 required-features = ["web"]
-default-features = ["web"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
-default = ["cli","web"]
+default = ["cli"]
 cli = ["rustyline"]
 web = ["dep:actix-files", "dep:actix-web", "dep:serde", "dep:askama"]
 

@@ -125,8 +125,7 @@ impl<'b, 'i, 's, 'v> Transaction<'b, 'i, 's, 'v> {
         predicate: Predicate<'s>,
     ) -> Result<bool, TransactionError> {
         let working_copy = self.get_working_copy_mut()?;
-        dbg!(&bag_name);
-
+        
         if let std::collections::hash_map::Entry::Vacant(e) =
             working_copy.to_mut().bags.entry(bag_name)
         {

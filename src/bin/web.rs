@@ -190,8 +190,11 @@ async fn main() -> std::io::Result<()> {
     {
         use futures::try_join;
 
-        try_join!(running, cli(repl_mutex.clone()))?;
-        Ok(())
+        match try_join!(running, cli(repl_mutex.clone())) {
+            Ok(_) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => Ok(()),
+            Err(e) => Err(e),
+        }
     }
 
     #[cfg(not(feature = "cli"))]
@@ -243,7 +246,7 @@ async fn cli(repl_mutex: Arc<Mutex<Repl<'_, '_, '_, '_>>>) -> Result<(), Error> 
                         }
                         Err(ReplError::Exit) => {
                             return Err(Error::new(
-                                std::io::ErrorKind::BrokenPipe,
+                                std::io::ErrorKind::Interrupted,
                                 "Closed by user",
                             ))
                         }
@@ -254,11 +257,11 @@ async fn cli(repl_mutex: Arc<Mutex<Repl<'_, '_, '_, '_>>>) -> Result<(), Error> 
                     continue;
                 }
                 Err(ReadlineError::Eof) => {
-                    return Err(Error::new(std::io::ErrorKind::BrokenPipe, "Closed by user"))
+                    return Err(Error::new(std::io::ErrorKind::Interrupted, "Closed by user"))
                 }
                 Err(err) => {
                     println!("Error: {err}");
-                    return Err(Error::new(std::io::ErrorKind::BrokenPipe, err));
+                    return Err(Error::new(std::io::ErrorKind::Interrupted, err));
                 }
             }
         }
