@@ -20,8 +20,8 @@ pub enum Expression<'s> {
 impl std::fmt::Display for Expression<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expression::Literal(l) => write!(f,"{l}"),
-            _ => write!(f, "{self:?}")
+            Expression::Literal(l) => write!(f, "{l}"),
+            _ => write!(f, "{self:?}"),
         }
     }
 }

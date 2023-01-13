@@ -6,10 +6,14 @@ const MAX_JOIN_SIZE: usize = 6;
 
 use crate::{
     env::{Environment, EvalError},
+    expression::Expression,
     matcher::Matcher,
     pattern::Pattern,
-    query::{ProjectionQuery, DeletionQuery, UpdateQuery, Predicate, check_value, TransferQuery, Insertion},
-    value::Value, expression::Expression,
+    query::{
+        check_value, DeletionQuery, Insertion, Predicate, ProjectionQuery, TransferQuery,
+        UpdateQuery,
+    },
+    value::Value,
 };
 
 #[derive(Clone)]
@@ -22,21 +26,21 @@ pub struct ValueBag<'i, 's, 'v> {
 pub(crate) enum InsertionResult {
     Success(usize),
     GuardError,
-    EvalError
+    EvalError,
 }
 pub(crate) enum DeletionResult {
     Success(usize),
-    EvalError
+    EvalError,
 }
 pub(crate) enum UpdateResult {
     Success(usize),
     GuardError,
-    EvalError
+    EvalError,
 }
 pub(crate) enum TransferResult {
     Success(usize),
     GuardError,
-    EvalError
+    EvalError,
 }
 
 impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
@@ -50,21 +54,29 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
         }
     }
 
-    pub(crate) fn insert<'e, 'x:'e>(&'x mut self, env: &'e Environment<'i, 's, 'v>, insertion: &'e Insertion<'s>) -> InsertionResult {
+    pub(crate) fn insert<'e, 'x: 'e>(
+        &'x mut self,
+        env: &'e Environment<'i, 's, 'v>,
+        insertion: &'e Insertion<'s>,
+    ) -> InsertionResult {
         let mut counter = 0;
         for expr in &insertion.expressions.expressions {
             match self.insert_one(env, expr) {
-                InsertionResult::Success(_) => {counter += 1}
-                err => return err
+                InsertionResult::Success(_) => counter += 1,
+                err => return err,
             }
         }
 
         InsertionResult::Success(counter)
     }
 
-    pub(crate) fn insert_one<'e, 'x:'e>(&'x mut self, env: &'e Environment<'i, 's, 'v>, expression: &'e Expression<'s>) -> InsertionResult {
+    pub(crate) fn insert_one<'e, 'x: 'e>(
+        &'x mut self,
+        env: &'e Environment<'i, 's, 'v>,
+        expression: &'e Expression<'s>,
+    ) -> InsertionResult {
         let eval_result = env.eval_expr(expression);
-        
+
         if let Ok(value) = eval_result {
             if check_value(&self.env, &self.guard, &value, self.len()) {
                 self.items.push(Cow::Owned(value.clone()));
@@ -210,9 +222,8 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
     pub(crate) fn update<'e, 'x: 'e>(
         &'x mut self,
         env: &'e Environment<'i, 's, 'v>,
-        update: &'e UpdateQuery<'s>
-    ) -> UpdateResult
-      {
+        update: &'e UpdateQuery<'s>,
+    ) -> UpdateResult {
         let mut counter = 0;
 
         let mut matcher = Matcher {
@@ -222,16 +233,19 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
 
         let bag_size = self.items.len();
 
-        for item in &mut self.items { 
+        for item in &mut self.items {
             if let Some(limit) = update.predicate.limit {
                 if limit <= counter {
-                    return UpdateResult::Success(counter)
+                    return UpdateResult::Success(counter);
                 }
             }
 
             matcher.clear();
 
-            if matches!(matcher.match_pattern(&update.predicate.pattern, item.as_ref()), Ok(())) {
+            if matches!(
+                matcher.match_pattern(&update.predicate.pattern, item.as_ref()),
+                Ok(())
+            ) {
                 continue;
             } else {
                 let mut env = env.clone();
@@ -254,7 +268,6 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
                     continue;
                 }
             }
-
         }
         UpdateResult::Success(counter)
     }
@@ -269,20 +282,20 @@ pub(crate) struct ValueBagTransfer<'x, 'i, 's, 'v> {
     target: &'x mut ValueBag<'i, 's, 'v>,
 }
 impl<'x, 'i, 's, 'v> ValueBagTransfer<'x, 'i, 's, 'v> {
-    pub(crate) fn new(source: &'x mut ValueBag<'i, 's, 'v>, target: &'x mut ValueBag<'i, 's, 'v>) -> Self {
-        Self {
-            source,
-            target,
-        }
+    pub(crate) fn new(
+        source: &'x mut ValueBag<'i, 's, 'v>,
+        target: &'x mut ValueBag<'i, 's, 'v>,
+    ) -> Self {
+        Self { source, target }
     }
 
     pub(crate) fn transfer<'e>(
         &'x mut self,
         env: &'e Environment<'i, 's, 'v>,
         transfer: &'e TransferQuery<'s>,
-    ) -> TransferResult  {
-        let mut counter  : usize= 0;
-        let mut short_circuit:Option<TransferResult> = None;
+    ) -> TransferResult {
+        let mut counter: usize = 0;
+        let mut short_circuit: Option<TransferResult> = None;
         let mut matcher = Matcher {
             env: &env.clone(),
             bindings: BTreeMap::new(),
@@ -337,4 +350,3 @@ impl<'x, 'i, 's, 'v> ValueBagTransfer<'x, 'i, 's, 'v> {
         short_circuit.unwrap_or(TransferResult::Success(counter))
     }
 }
-

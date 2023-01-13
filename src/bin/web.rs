@@ -47,7 +47,7 @@ struct HomeTemplate<'x> {
 #[post("/")]
 async fn eval(
     repl: web::Form<ReplInput>,
-    env_mutex: Data<Arc<Mutex<Repl<'_, '_, '_,'_>>>>,
+    env_mutex: Data<Arc<Mutex<Repl<'_, '_, '_, '_>>>>,
 ) -> impl Responder {
     let Ok(mut repl_state) = env_mutex.lock() else {
         return HttpResponse::Ok().content_type("text/html").body("Locked");
@@ -72,11 +72,8 @@ async fn eval(
 
     match statement(&repl.statement) {
         Ok((_, stmt)) => {
-
             let deny = match &stmt {
-                Statement::UseBag(id,..) => {
-                    !repl_state.bags().contains(id)
-                },
+                Statement::UseBag(id, ..) => !repl_state.bags().contains(id),
                 Statement::Import(..) => true,
                 Statement::Export(..) => true,
                 _ => false,
@@ -197,37 +194,37 @@ async fn main() -> std::io::Result<()> {
         Ok(())
     }
 
-    #[cfg(not(feature = "cli"))] 
+    #[cfg(not(feature = "cli"))]
     {
-        return running.await
+        return running.await;
     }
 }
 
 #[cfg(feature = "cli")]
 async fn cli(repl_mutex: Arc<Mutex<Repl<'_, '_, '_, '_>>>) -> Result<(), Error> {
-    use rustyline::Editor;
-    use rustyline::error::ReadlineError;
     use damasc::repl::ReplError;
+    use rustyline::error::ReadlineError;
+    use rustyline::Editor;
 
     if let Ok(mut rl) = Editor::<()>::new() {
         if rl.load_history("history.txt").is_err() {
             println!("No previous history.");
         }
-    
+
         println!("Starting REPL because feature 'cli' is enabled.");
         println!("press CTRL-D to exit.");
         println!(".bag");
         if let Ok(repl) = repl_mutex.lock() {
             println!("Current Bag: {}", repl.current_bag);
         };
-    
+
         loop {
             let readline = rl.readline(">> ");
             match readline {
                 Ok(line) => {
                     rl.add_history_entry(line.as_str());
                     let input = line.as_str();
-    
+
                     let stmt = match statement(input) {
                         Ok((_, s)) => s,
                         Err(e) => {
@@ -239,12 +236,17 @@ async fn cli(repl_mutex: Arc<Mutex<Repl<'_, '_, '_, '_>>>) -> Result<(), Error> 
                     let Ok(mut repl) = repl_mutex.lock() else {
                         continue;
                     };
-    
+
                     match repl.execute(stmt) {
                         Ok(r) => {
                             println!("{r}")
                         }
-                        Err(ReplError::Exit) => return Err(Error::new(std::io::ErrorKind::BrokenPipe, "Closed by user")),
+                        Err(ReplError::Exit) => {
+                            return Err(Error::new(
+                                std::io::ErrorKind::BrokenPipe,
+                                "Closed by user",
+                            ))
+                        }
                         Err(e) => println!("Error: {e:?}"),
                     }
                 }
@@ -256,7 +258,7 @@ async fn cli(repl_mutex: Arc<Mutex<Repl<'_, '_, '_, '_>>>) -> Result<(), Error> 
                 }
                 Err(err) => {
                     println!("Error: {err}");
-                    return Err(Error::new(std::io::ErrorKind::BrokenPipe, err))
+                    return Err(Error::new(std::io::ErrorKind::BrokenPipe, err));
                 }
             }
         }

@@ -1,6 +1,13 @@
 use std::collections::BTreeMap;
 
-use crate::{expression::{Expression, ExpressionSet}, pattern::Pattern, literal::Literal, matcher::Matcher, env::Environment, value::Value};
+use crate::{
+    env::Environment,
+    expression::{Expression, ExpressionSet},
+    literal::Literal,
+    matcher::Matcher,
+    pattern::Pattern,
+    value::Value,
+};
 
 #[derive(Clone)]
 pub struct ProjectionQuery<'s> {
@@ -16,7 +23,7 @@ pub struct Predicate<'s> {
     pub limit: Option<usize>,
 }
 
-impl<'s> Predicate<'s>  {
+impl<'s> Predicate<'s> {
     pub(crate) fn any() -> Self {
         Self {
             pattern: Pattern::Discard,
@@ -26,7 +33,8 @@ impl<'s> Predicate<'s>  {
     }
 
     fn is_any(&self) -> bool {
-        matches!(self.pattern, Pattern::Discard) && matches!(self.guard, Expression::Literal(Literal::Boolean(true)))
+        matches!(self.pattern, Pattern::Discard)
+            && matches!(self.guard, Expression::Literal(Literal::Boolean(true)))
     }
 }
 
@@ -42,7 +50,7 @@ impl<'s> std::fmt::Display for Predicate<'s> {
         } else if let Some(l) = self.limit {
             write!(f, "limit {l}")?;
         } else {
-            write!(f,"none")?;
+            write!(f, "none")?;
         }
 
         Ok(())
@@ -56,8 +64,6 @@ pub struct CrossPredicate<'s> {
     pub limit: Option<usize>,
 }
 
-
-
 #[derive(Clone)]
 pub struct DeletionQuery<'s> {
     pub predicate: Predicate<'s>,
@@ -69,21 +75,24 @@ pub struct UpdateQuery<'s> {
     pub projection: Expression<'s>,
 }
 
-
 #[derive(Clone)]
 pub struct TransferQuery<'s> {
     pub predicate: Predicate<'s>,
     pub projection: Expression<'s>,
 }
 
-
-pub(crate) fn check_value<'s,'v>(env: &Environment<'_, 's, 'v>, pred: &Predicate<'s>, val: &Value<'s, 'v>, count: usize) -> bool {
+pub(crate) fn check_value<'s, 'v>(
+    env: &Environment<'_, 's, 'v>,
+    pred: &Predicate<'s>,
+    val: &Value<'s, 'v>,
+    count: usize,
+) -> bool {
     if let Some(l) = pred.limit {
         if l <= count {
             return false;
         }
     }
-    
+
     let mut matcher = Matcher {
         env,
         bindings: BTreeMap::new(),
@@ -102,8 +111,7 @@ pub(crate) fn check_value<'s,'v>(env: &Environment<'_, 's, 'v>, pred: &Predicate
     true
 }
 
-
 #[derive(Clone)]
 pub struct Insertion<'s> {
-    pub(crate) expressions: ExpressionSet<'s>
+    pub(crate) expressions: ExpressionSet<'s>,
 }

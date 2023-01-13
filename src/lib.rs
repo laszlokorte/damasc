@@ -3,6 +3,7 @@
 
 pub mod assignment;
 pub mod bag;
+pub mod bag_bundle;
 pub mod env;
 pub mod expression;
 pub mod identifier;
@@ -15,7 +16,6 @@ pub mod repl;
 pub mod statement;
 pub mod value;
 pub mod wasm;
-pub mod bag_bundle;
 
 use expression::*;
 use identifier::Identifier;

@@ -16,7 +16,10 @@ use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::literal::Literal;
 use crate::pattern::*;
-use crate::query::{CrossPredicate, Predicate, ProjectionQuery, DeletionQuery, UpdateQuery, TransferQuery, Insertion};
+use crate::query::{
+    CrossPredicate, DeletionQuery, Insertion, Predicate, ProjectionQuery, TransferQuery,
+    UpdateQuery,
+};
 use crate::statement::Statement;
 use crate::value::ValueType;
 
@@ -663,7 +666,7 @@ pub(crate) fn assignment_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'
                     },
                 ),
             ),
-            alt((ws(tag(";")), space0))
+            alt((ws(tag(";")), space0)),
         ),
         |assignments| Statement::AssignSet(AssignmentSet { assignments }),
     )(input)
@@ -672,17 +675,18 @@ pub(crate) fn assignment_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'
 pub fn try_match_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
     map(
         terminated(
-        separated_list1(
-            ws(tag(";")),
-            map(
-                separated_pair(pattern, ws(tag("=")), expression),
-                |(pattern, expression)| Assignment {
-                    pattern,
-                    expression,
-                },
+            separated_list1(
+                ws(tag(";")),
+                map(
+                    separated_pair(pattern, ws(tag("=")), expression),
+                    |(pattern, expression)| Assignment {
+                        pattern,
+                        expression,
+                    },
+                ),
             ),
+            alt((ws(tag(";")), space0)),
         ),
-        alt((ws(tag(";")), space0))),
         |assignments| Statement::MatchSet(AssignmentSet { assignments }),
     )(input)
 }
@@ -721,7 +725,11 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
         )),
         map(
             preceded(ws(tag(".insert ")), expression_bag),
-            |expressions| Statement::Insert(Insertion{expressions: ExpressionSet{expressions}}),
+            |expressions| {
+                Statement::Insert(Insertion {
+                    expressions: ExpressionSet { expressions },
+                })
+            },
         ),
         map(preceded(ws(tag(".pop ")), full_expression), Statement::Pop),
         map(
@@ -734,12 +742,12 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
                 )),
             ),
             |(pattern, guard, limit)| {
-                Statement::Deletion(DeletionQuery{
+                Statement::Deletion(DeletionQuery {
                     predicate: Predicate {
                         pattern,
                         guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
                         limit: limit.map(|l| l as usize),
-                    }
+                    },
                 })
             },
         ),
@@ -754,13 +762,13 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
                 )),
             ),
             |(pattern, projection, guard, limit)| {
-                Statement::Update(UpdateQuery{
+                Statement::Update(UpdateQuery {
                     predicate: Predicate {
                         pattern,
                         guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
                         limit: limit.map(|l| l as usize),
                     },
-                    projection
+                    projection,
                 })
             },
         ),
@@ -776,21 +784,24 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
                 )),
             ),
             |(to_bag, pattern, projection, guard, limit)| {
-                Statement::Move(to_bag, TransferQuery{
-                    predicate: Predicate {
-                        pattern: Pattern::Capture(
-                            Identifier {
-                                name: Cow::Borrowed("$"),
-                            },
-                            Box::new(pattern),
-                        ),
-                        guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
-                        limit: limit.map(|l| l as usize),
+                Statement::Move(
+                    to_bag,
+                    TransferQuery {
+                        predicate: Predicate {
+                            pattern: Pattern::Capture(
+                                Identifier {
+                                    name: Cow::Borrowed("$"),
+                                },
+                                Box::new(pattern),
+                            ),
+                            guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
+                            limit: limit.map(|l| l as usize),
+                        },
+                        projection: projection.unwrap_or(Expression::Identifier(Identifier {
+                            name: Cow::Borrowed("$"),
+                        })),
                     },
-                    projection: projection.unwrap_or(Expression::Identifier(Identifier {
-                        name: Cow::Borrowed("$"),
-                    }))
-                })
+                )
             },
         ),
         map(
@@ -802,18 +813,21 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
                 )),
             ),
             |(to_bag, limit)| {
-                Statement::Move(to_bag, TransferQuery{
-                    projection: Expression::Identifier(Identifier {
-                        name: Cow::Borrowed("$"),
-                    }),
-                    predicate: Predicate {
-                        pattern: Pattern::Identifier(Identifier {
+                Statement::Move(
+                    to_bag,
+                    TransferQuery {
+                        projection: Expression::Identifier(Identifier {
                             name: Cow::Borrowed("$"),
                         }),
-                        guard: Expression::Literal(Literal::Boolean(true)),
-                        limit: limit.map(|l| l as usize),
+                        predicate: Predicate {
+                            pattern: Pattern::Identifier(Identifier {
+                                name: Cow::Borrowed("$"),
+                            }),
+                            guard: Expression::Literal(Literal::Boolean(true)),
+                            limit: limit.map(|l| l as usize),
+                        },
                     },
-                })
+                )
             },
         ),
         map(

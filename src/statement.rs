@@ -5,7 +5,7 @@ use crate::{
     expression::{Expression, ExpressionSet},
     identifier::Identifier,
     pattern::Pattern,
-    query::{Predicate, ProjectionQuery, DeletionQuery, UpdateQuery, TransferQuery, Insertion},
+    query::{DeletionQuery, Insertion, Predicate, ProjectionQuery, TransferQuery, UpdateQuery},
 };
 
 #[derive(Clone)]

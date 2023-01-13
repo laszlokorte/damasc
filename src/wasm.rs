@@ -26,13 +26,11 @@ extern "C" {
 
 #[wasm_bindgen]
 pub struct WasmRepl {
-    state: Box<Repl<'static,'static,'static, 'static>>,
+    state: Box<Repl<'static, 'static, 'static, 'static>>,
 }
-
 
 #[wasm_bindgen]
 impl WasmRepl {
-
     #[wasm_bindgen(constructor)]
     pub fn default() -> Self {
         Self {
@@ -40,9 +38,8 @@ impl WasmRepl {
         }
     }
 
-
     #[wasm_bindgen]
-    pub fn eval(&mut self, input:&str) {
+    pub fn eval(&mut self, input: &str) {
         let stmt = match crate::parser::statement(input) {
             Ok((_, s)) => s,
             Err(e) => {
@@ -51,12 +48,9 @@ impl WasmRepl {
         };
 
         match self.state.execute(stmt) {
-            Ok(r) => {
-                return show_result(input, &format!("{r}"))
-            }
-            Err(ReplError::Exit) => {},
+            Ok(r) => return show_result(input, &format!("{r}")),
+            Err(ReplError::Exit) => {}
             Err(e) => return show_error(input, &format!("Error: {e:?}")),
         }
     }
 }
-
