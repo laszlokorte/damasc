@@ -10,7 +10,7 @@ use crate::env::Environment;
 use crate::expression::*;
 use crate::identifier::Identifier;
 use crate::matcher::Matcher;
-use crate::parser::{full_expression, pattern};
+use crate::parser::{full_expression, pattern, bundle_line, BundleCommand};
 use crate::statement::Statement;
 use crate::value::Value;
 
@@ -176,6 +176,65 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 } else {
                     Ok(ReplOutput::Notice("SWITCHED BAG".into()))
                 }
+            }
+            Statement::LoadBundle(filename) => {
+                let Ok(file) = File::open(filename.as_ref()) else {
+                    return Err(ReplError::IoError);
+                };
+                let lines = io::BufReader::new(file).lines();
+                let mut trans = Transaction::new(&self.bag_bundle);
+
+                let mut counter = 0;
+                let mut bag_counter = 0;
+                for l in lines {
+                    let Ok(line) = l else {
+                        return Err(ReplError::ReadError);
+                    };
+
+                    let Ok((_, cmd)) = bundle_line(&line) else {
+                        return Err(ReplError::ParseError);
+                    };
+
+                    match cmd {
+                        BundleCommand::Bag(bag_id, pred) => {
+                            self.current_bag = bag_id.clone();
+                            let created = trans
+                            .create_bag(
+                                bag_id.clone(),
+                                pred.unwrap_or(Predicate {
+                                    pattern: pattern("_").unwrap().1,
+                                    guard: full_expression("true").unwrap().1,
+                                    limit: None,
+                                }),
+                            )
+                            .map_err(|_| ReplError::TranscationAborted)?;
+
+                            if created {
+                                bag_counter += 1;
+                            }
+                        },
+                        BundleCommand::Values(expr) => {
+                            for ex in expr.expressions {
+                                let r = trans.insert_one(&self.current_bag, &self.env, &ex)
+                                .map_err(|_| ReplError::TranscationAborted)?;
+                                
+                                match r {
+                                    InsertionResult::Success(c) => {
+                                        counter+= c ;
+                                    },
+                                    InsertionResult::GuardError => return Err(ReplError::GuardError),
+                                    InsertionResult::EvalError => return Err(ReplError::EvalError),
+                                }
+                            }
+                        },
+                    }
+                }                
+                self.bag_bundle = trans.commit().map_err(|_| ReplError::TranscationAborted)?;
+
+                Ok(ReplOutput::Notice(format!(
+                    "Imported {} bags with {} values in total from file '{filename}' into current bag({})",
+                    bag_counter, counter, self.current_bag
+                )))
             }
             Statement::Import(filename) => {
                 let Ok(file) = File::open(filename.as_ref()) else {

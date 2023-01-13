@@ -16,7 +16,7 @@ pub struct ProjectionQuery<'s> {
     pub projection: Expression<'s>,
 }
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct Predicate<'s> {
     pub pattern: Pattern<'s>,
     pub guard: Expression<'s>,

@@ -29,6 +29,7 @@ pub enum Statement<'a, 'b> {
     Move(Identifier<'b>, TransferQuery<'a>),
     Import(Cow<'b, str>),
     Export(Cow<'b, str>),
+    LoadBundle(Cow<'b, str>),
     UseBag(Identifier<'b>, Option<Predicate<'b>>),
     TellBag,
     ListBags,

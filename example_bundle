@@ -4,16 +4,13 @@
 "mee";
 "foo";
 "bar";
-
 .bag numbers
 23;
 42;42;42
 108;
 108;
-
 1024;
 512;
-
 .bag bools
 true;
 true;

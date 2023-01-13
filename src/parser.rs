@@ -695,6 +695,30 @@ fn filename(input: &str) -> IResult<&str, &str> {
     recognize(many1(alt((alpha1, tag("_")))))(input)
 }
 
+fn bag_creation<'a,'b>(input:&str) -> IResult<&str, (Identifier<'a>, Option<Predicate<'b>>)> {
+    map(
+        preceded(
+            ws(tag(".bag ")),
+            tuple((
+                identifier,
+                preceded(ws(tag("as")), pattern),
+                opt(preceded(ws(tag("where")), expression)),
+                opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
+            )),
+        ),
+        |(name, pattern, guard, limit)| {
+            (
+                name,
+                Some(Predicate {
+                    pattern,
+                    guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
+                    limit: limit.map(|l| l as usize),
+                }),
+            )
+        },
+    )(input)
+}
+
 pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
     all_consuming(alt((
         alt((
@@ -709,6 +733,9 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
             }),
             map(preceded(ws(tag(".dump ")), filename), |f| {
                 Statement::Export(Cow::Owned(f.into()))
+            }),
+            map(preceded(ws(tag(".load_bundle ")), filename), |f| {
+                Statement::LoadBundle(Cow::Owned(f.into()))
             }),
             map(
                 preceded(ws(tag(".inspect ")), full_expression),
@@ -913,27 +940,7 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
             preceded(ws(tag(".bag ")), all_consuming(ws(identifier))),
             |p| Statement::UseBag(p, None),
         ),
-        map(
-            preceded(
-                ws(tag(".bag ")),
-                tuple((
-                    identifier,
-                    preceded(ws(tag("as")), pattern),
-                    opt(preceded(ws(tag("where")), expression)),
-                    opt(preceded(ws(tag("limit")), nom::character::complete::u32)),
-                )),
-            ),
-            |(name, pattern, guard, limit)| {
-                Statement::UseBag(
-                    name,
-                    Some(Predicate {
-                        pattern,
-                        guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
-                        limit: limit.map(|l| l as usize),
-                    }),
-                )
-            },
-        ),
+        map(bag_creation, |(name, pred)| Statement::UseBag(name, pred)),
         alt((
             all_consuming(assignment_multi),
             all_consuming(try_match_multi),
@@ -941,4 +948,21 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
         map(expression_multi, Statement::Eval),
         value(Statement::Noop, all_consuming(space0)),
     )))(input)
+}
+
+#[derive(Debug)]
+pub(crate) enum BundleCommand<'v> {
+    Bag(Identifier<'v>, Option<Predicate<'v>>),
+    Values(ExpressionSet<'v>)
+}
+
+pub(crate) fn bundle_line<'x>(input:&str) -> IResult<&str, BundleCommand<'x>> {
+    alt((
+        map(
+            preceded(ws(tag(".bag ")), all_consuming(ws(identifier))),
+            |name| BundleCommand::Bag(name, None),
+        ),
+        map(bag_creation, |(name, pred)| BundleCommand::Bag(name, pred)),
+        map(expression_multi, BundleCommand::Values),
+    ))(input)
 }
