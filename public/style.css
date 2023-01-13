@@ -210,6 +210,11 @@ footer {
     color: #fff;
     font: inherit;
     cursor: pointer;
+    text-align: center;
+    font: inherit;
+    text-decoration: none;
+    display: block;
+    padding: 0.2ch;
 }
 
 .out-copy {
@@ -228,4 +233,8 @@ footer {
 .explainer-head {
     cursor: pointer;
     padding: 0.5em;
+}
+
+.binding-list {
+    margin: 1em;
 }

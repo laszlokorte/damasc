@@ -1,16 +1,19 @@
-<form class="example-list" action="." method="post">
-<span>Examples: </span>
-<button name="statement" value="true" class="example-button">true</button>
-<button name="statement" value="true && false" class="example-button">true && false</button>
-<button name="statement" value="5*5" class="example-button">5*5</button>
-<button name="statement" value="[1,2,3]" class="example-button">[1,2,3]</button>
-<button name="statement" value="{x:23,y:42}" class="example-button">{x:32,y:42}</button>
-<button name="statement" value="&quot;hello&quot;" class="example-button">&quot;hello&quot;</button>
-<button name="statement" value="[_,m,_]=[1,2,3]" class="example-button">[_,m,_]=[1,2,3]</button>
-<button name="statement" value="t=type(x);{x:[_ is Integer, x]}={x:[23,true]}" class="example-button">t=type(x);{x:[_ is Integer, x]}={x:[23,true]}</button>
-<button name="statement" value="let [x,y] = [23,42]" class="example-button">let [x,y] = [23,42]</button>
-<button name="statement" value=".insert 42" class="example-button">.insert 42</button>
-<button name="statement" value=".pop 42" class="example-button">.pop 42</button>
-<button name="statement" value=".query x where x > 40" class="example-button">.query x where x > 40</button>
-<button name="statement" value=".delete x where x > 40 limit 5" class="example-button">.delete x where x > 40 limit 5</button>
-</form>
+<details class="explainer" open>
+    <summary class="explainer-head">Examples</summary>
+
+    <form data-repl class="example-list" action="." method="post">
+        <button name="statement" value="true" class="example-button">true</button>
+        <button name="statement" value="true && false" class="example-button">true && false</button>
+        <button name="statement" value="5*5" class="example-button">5*5</button>
+        <button name="statement" value="[1,2,3]" class="example-button">[1,2,3]</button>
+        <button name="statement" value="{x:23,y:42}" class="example-button">{x:32,y:42}</button>
+        <button name="statement" value="&quot;hello&quot;" class="example-button">&quot;hello&quot;</button>
+        <button name="statement" value="[_,m,_]=[1,2,3]" class="example-button">[_,m,_]=[1,2,3]</button>
+        <button name="statement" value="t=type(x);{x:[_ is Integer, x]}={x:[23,true]}" class="example-button">t=type(x);{x:[_ is Integer, x]}={x:[23,true]}</button>
+        <button name="statement" value="let [x,y] = [23,42]" class="example-button">let [x,y] = [23,42]</button>
+        <button name="statement" value=".insert 42" class="example-button">.insert 42</button>
+        <button name="statement" value=".pop 42" class="example-button">.pop 42</button>
+        <button name="statement" value=".query x where x > 40" class="example-button">.query x where x > 40</button>
+        <button name="statement" value=".delete x where x > 40 limit 5" class="example-button">.delete x where x > 40 limit 5</button>
+    </form>
+    </details>

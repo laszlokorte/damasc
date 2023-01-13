@@ -6,6 +6,32 @@
 {% include "examples.html.j2" %}
 
 {% set prefill = error.is_some() %}
+
+
+<div class="repl-output-container">
+<div class="repl-output" id="repl-output">
+{% match error %}
+{% when Some with (e) %}
+<div class="out-row error">
+<div class="out-cmd">{{repl.statement}}</div>
+<div class="out-result">{{e}}</div>
+</div>
+{% when None %}
+<div class="out-row success">
+<div class="out-cmd">{{repl.statement}}</div>
+<div class="out-result">
+{%- match output -%}
+{%- when Some with (e) -%}
+{{ e }}
+{%- when None -%}
+{%- endmatch -%}
+</div>
+</div>
+{% endmatch %}
+</div>
+<a class="clear-button" href="/">clear</a>
+</div>
+
 {% include "repl.html.j2"%}
 
 {% if false %}
@@ -19,10 +45,9 @@
 
 {% if vars.len() > 0 %}
 
-<form class="example-list" action="." method="post">
+<form class="binding-list" action="." method="post">
 <strong>Current Bindings</strong>
 <button name="statement" value=".clear" class="example-button">.clear</button>
-
 {% for var in vars %}
 <button name="statement" value="{{var}}" class="example-button">{{var}}</button>
 {% endfor %}
@@ -30,20 +55,6 @@
 
 {% endif %}
 
-<h2>&gt;&gt; {{repl.statement}}</h2>
 
-{% match error %}
-{% when Some with (e) %}
-<strong>Error</strong><br>
-<p class="repl-output">{{ e }}</p>
-{% when None %}
-{% endmatch %}
-
-{% match output %}
-{% when Some with (e) %}
-<strong>Output</strong><br>
-<p class="repl-output">{{ e }}</p>
-{% when None %}
-{% endmatch %}
 
 {% endblock body %}
