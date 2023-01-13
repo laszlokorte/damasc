@@ -156,22 +156,9 @@ impl<'b, 'i, 's, 'v> Transaction<'b, 'i, 's, 'v> {
         }
     }
 
-    fn new(snapshot: &BagBundle<'b, 'i, 's, 'v>) -> Self {
+    pub fn new(snapshot: &BagBundle<'b, 'i, 's, 'v>) -> Self {
         Self::Clean {
             working_copy: Cow::Owned(snapshot.clone()),
-        }
-    }
-
-    pub(crate) fn run<'x, F,T,E:Sized>(snapshot: &'x mut BagBundle<'b, 'i, 's, 'v>, f: F) -> Result<T,TransactionError<E>> 
-        where F: FnOnce(&mut Self)->Result<T,E> {
-        let mut trans = Transaction::new(snapshot);
-        let r = f(&mut trans).map_err(TransactionError::Failed)?;
-        
-        if let Ok(new_snapshot) = trans.commit::<E>() {
-            *snapshot = new_snapshot;
-            Ok(r)
-        } else {
-            Err(TransactionError::Aborted)
         }
     }
 
@@ -294,11 +281,16 @@ impl<'b, 'i, 's, 'v> Transaction<'b, 'i, 's, 'v> {
         self.fail_or_dirty(result)
     }
 
-    pub(crate) fn commit<E>(self) -> Result<BagBundle<'b, 'i, 's, 'v>, TransactionError<E>> {
+    pub(crate) fn commit(self) -> Result<BagBundle<'b, 'i, 's, 'v>, TransactionError2> {
         match self {
             Transaction::Clean { working_copy } => Ok(working_copy.as_ref().to_owned()),
             Transaction::Dirty { working_copy } => Ok(working_copy.as_ref().to_owned()),
-            Transaction::Failed => Err(TransactionError::Aborted),
+            Transaction::Failed => Err(TransactionError2::Aborted),
         }
     }
+}
+
+
+pub(crate) enum TransactionError2 {
+    Aborted,
 }

@@ -97,13 +97,15 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
         };
         let mut bag_bundle = BagBundle::new();
         
-        let _ = Transaction::run(&mut bag_bundle, |t| {
-            t.create_bag(current_bag.clone(), Predicate {
-                pattern: pattern("_").unwrap().1,
-                guard: full_expression("true").unwrap().1,
-                limit: None,
-            })
+        let mut trans = Transaction::new(&bag_bundle);
+        let _ = trans.create_bag(current_bag.clone(), Predicate {
+            pattern: pattern("_").unwrap().1,
+            guard: full_expression("true").unwrap().1,
+            limit: None,
         });
+        if let Ok(r) = trans.commit() {
+            bag_bundle = r;
+        };
 
         Self {
             env,
@@ -127,54 +129,47 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 return Ok(ReplOutput::Notice("Interactive help is not yet implemented. Please take a look at the README.md file".to_string()));
             }
             Statement::TellBag => {
-                Transaction::run(&mut self.bag_bundle, |t| {
-                    let Ok((size,guard)) = t.get_bag_info(&self.current_bag) else {
-                        return Err(ReplError::BagError);
-                    };
-    
-                    return Ok(ReplOutput::Notice(format!(
-                        "Current Bag: {}, size: {}, constraint: {}",
-                        self.current_bag,
-                        size,
-                        guard
-                    )));
-                }).map_err(|e| {
-                    match e {
-                        TransactionError::Failed(e) => e,
-                        TransactionError::Aborted => ReplError::TranscationAborted,
-                    }
-                })
+                let mut trans = Transaction::new(&self.bag_bundle);
+                let Ok((size,guard)) = trans.get_bag_info(&self.current_bag) else {
+                    return Err(ReplError::BagError);
+                };
+
+
+                return Ok(ReplOutput::Notice(format!(
+                    "Current Bag: {}, size: {}, constraint: {}",
+                    self.current_bag,
+                    size,
+                    guard
+                )));
             }
             Statement::ListBags => {
-                Transaction::run(&mut self.bag_bundle, |t| {
-                    Ok(ReplOutput::Notice(format!(
-                        "Bags: {}",
-                        t.bag_names::<ReplError>()
-                            .map_err(|_| ReplError::TranscationAborted)?
-                            .iter()
-                            .map(|i| i.name.as_ref())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    )))
-                }).map_err(|e| {
-                    match e {
-                        TransactionError::Failed(e) => e,
-                        TransactionError::Aborted => ReplError::TranscationAborted,
-                    }
-                })
+                let trans = Transaction::new(&self.bag_bundle);
+
+                Ok(ReplOutput::Notice(format!(
+                    "Bags: {}",
+                    trans.bag_names::<ReplError>()
+                        .map_err(|_| ReplError::TranscationAborted)?
+                        .iter()
+                        .map(|i| i.name.as_ref())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )))
             }
             Statement::UseBag(bag_id, pred) => {
                 self.current_bag = bag_id.clone();
                 let wants_create = pred.is_some();
                 
-                match Transaction::run(&mut self.bag_bundle, |t| {
-                    t.create_bag(bag_id.clone(), pred.unwrap_or(Predicate {
-                        pattern: pattern("_").unwrap().1,
-                        guard: full_expression("true").unwrap().1,
-                        limit: None,
-                    }))
-                }) {
+                let mut trans = Transaction::new(&self.bag_bundle);
+                let creation = trans.create_bag(bag_id.clone(), pred.unwrap_or(Predicate {
+                    pattern: pattern("_").unwrap().1,
+                    guard: full_expression("true").unwrap().1,
+                    limit: None,
+                }));
+
+                match creation {
                     Ok(_) => {
+                        self.bag_bundle = trans.commit().map_err(|_|ReplError::TranscationAborted)?;
+
                         return Ok(ReplOutput::Notice("BAG CREATED".into()));
                     },
                     Err(_) => {
@@ -193,34 +188,30 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                     return Err(ReplError::IoError);
                 };
                 let lines = io::BufReader::new(file).lines();
+                let mut trans = Transaction::new(&self.bag_bundle);
 
-                Transaction::run(&mut self.bag_bundle, |t| {
-                    t.insert(&self.current_bag, lines.map(|l| {
-                        let Ok(line) = l else {
-                            return Err(ReplError::ReadError);
-                        };
-                        let Ok((_, expr)) = full_expression(&line) else {
-                            return Err(ReplError::ParseError);
-                        };
-                        let Ok(value) = self.env.eval_expr(&expr) else {
-                            return Err(ReplError::EvalError);
-                        };
-    
-                        Ok(value)
-                    }).collect::<Result<Vec<_>,_>>()?.into_iter())
-                    .map_err(|_|ReplError::BagError)
-                }).map_err(|e| {
-                    match e {
-                        TransactionError::Failed(e) => e,
-                        TransactionError::Aborted => ReplError::TranscationAborted,
-                    }
-                }).map(|count| {
-                    ReplOutput::Notice(format!(
-                        "Imported {} values from file '{filename}' into current bag({})",
-                        count,
-                        self.current_bag
-                    ))
-                })
+                let count = trans.insert(&self.current_bag, lines.map(|l| {
+                    let Ok(line) = l else {
+                        return Err(ReplError::ReadError);
+                    };
+                    let Ok((_, expr)) = full_expression(&line) else {
+                        return Err(ReplError::ParseError);
+                    };
+                    let Ok(value) = self.env.eval_expr(&expr) else {
+                        return Err(ReplError::EvalError);
+                    };
+
+                    Ok(value)
+                }).collect::<Result<Vec<_>,_>>()?.into_iter())
+                .map_err(|_|ReplError::BagError)?;
+
+                self.bag_bundle = trans.commit().map_err(|_|ReplError::TranscationAborted)?;
+                
+                Ok(ReplOutput::Notice(format!(
+                    "Imported {} values from file '{filename}' into current bag({})",
+                    count,
+                    self.current_bag
+                )))
             }
             Statement::Export(filename) => {
                 use std::io::Write;
@@ -230,112 +221,94 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 };
                 
                 let mut file = LineWriter::new(file);
-                Transaction::run(&mut self.bag_bundle, |t| {
-                    for v in t.read(&self.current_bag).map_err(|_| ReplError::IoError)? {
-                        let _ = writeln!(file, "{v}");
-                    }
+                let trans = Transaction::new(&self.bag_bundle);
+                for v in trans.read(&self.current_bag).map_err(|_| ReplError::IoError)? {
+                    let _ = writeln!(file, "{v}");
+                }
 
-                    return Ok(ReplOutput::Notice(format!(
-                        "Current bag({}) written to file: {filename}",
-                        self.current_bag
-                    )));
-                }).map_err(|e| {
-                    match e {
-                        TransactionError::Failed(e) => e,
-                        TransactionError::Aborted => ReplError::TranscationAborted,
-                    }
-                })
+                self.bag_bundle = trans.commit().map_err(|_|ReplError::TranscationAborted)?;
+                
+                return Ok(ReplOutput::Notice(format!(
+                    "Current bag({}) written to file: {filename}",
+                    self.current_bag
+                )));
             }
             Statement::Insert(expressions) => {
+                let mut trans = Transaction::new(&self.bag_bundle);
+                let count = trans.insert(&self.current_bag, 
+                    expressions
+                    .into_iter()
+                    .map(|e| self.env.eval_expr(&e))
+                    .collect::<Result<Vec<_>,_>>()
+                    .map_err(|_| ReplError::EvalError)?
+                    .into_iter()
+                ).map_err(|_| ReplError::BagError)?;
 
-                let result = Transaction::run(&mut self.bag_bundle, |t| {
-                    t.insert(&self.current_bag, 
-                        expressions
-                        .into_iter()
-                        .map(|e| self.env.eval_expr(&e))
-                        .collect::<Result<Vec<_>,_>>()
-                        .map_err(|_| ReplError::EvalError)?
-                        .into_iter()
-                    ).map_err(|_| ReplError::BagError)
-                });
+                self.bag_bundle = trans.commit().map_err(|_|ReplError::TranscationAborted)?;
 
-                match result {
-                    Ok(count) => {
-                        if count > 0 {
-                            Ok(ReplOutput::Inserted(count))
-                        } else {
-                            Ok(ReplOutput::No)
-                        }
-                    },
-                    Err(_) => Err(ReplError::EvalError),
-                }
+                Ok(ReplOutput::Inserted(count))
             }
             Statement::Query(query) => {
-                Transaction::run(&mut self.bag_bundle, |t| {
-                    t.query(&self.current_bag, &self.env, &query).map_err(|_| ReplError::BagError)?
-                    .collect::<Result<Vec<_>, _>>()
-                    .map(ReplOutput::Values)
-                    .map_err(|_| ReplError::EvalError)
-                }).map_err(|e| {
-                    match e {
-                        TransactionError::Failed(e) => e,
-                        TransactionError::Aborted => ReplError::TranscationAborted,
-                    }
-                })
+                let trans = Transaction::new(&self.bag_bundle);
+                
+                let result = trans.query(&self.current_bag, &self.env, &query).map_err(|_| ReplError::BagError)?
+                .collect::<Result<Vec<_>, _>>()
+                .map(ReplOutput::Values)
+                .map_err(|_| ReplError::EvalError);
+
+                self.bag_bundle = trans.commit().map_err(|_|ReplError::TranscationAborted)?;
+
+                result
             }
             Statement::Deletion(deletion) => {
-                Transaction::run(&mut self.bag_bundle, |t| {
-                    t.delete(&self.current_bag, &self.env, &deletion)
+                let mut trans = Transaction::new(&self.bag_bundle);
+                
+                let result = trans.delete(&self.current_bag, &self.env, &deletion)
                     .map_err(|_| ReplError::BagError)
-                    .map(ReplOutput::Deleted)
-                }).map_err(|e| {
-                    match e {
-                        TransactionError::Failed(e) => e,
-                        TransactionError::Aborted => ReplError::TranscationAborted,
-                    }
-                })
+                    .map(ReplOutput::Deleted);
+
+                self.bag_bundle = trans.commit().map_err(|_|ReplError::TranscationAborted)?;
+
+                result
             }
             Statement::Update(update) => {
-                Transaction::run(&mut self.bag_bundle, |t| {
-                    t.update(&self.current_bag, &self.env, &update)
-                    .map_err(|_| ReplError::BagError)
-                    .map(ReplOutput::Updated)
-                }).map_err(|e| {
-                    match e {
-                        TransactionError::Failed(e) => e,
-                        TransactionError::Aborted => ReplError::TranscationAborted,
-                    }
-                })
+                let mut trans = Transaction::new(&self.bag_bundle);
+                
+                let result = trans.update(&self.current_bag, &self.env, &update)
+                .map_err(|_| ReplError::BagError)
+                .map(ReplOutput::Updated);
+
+                self.bag_bundle = trans.commit().map_err(|_|ReplError::TranscationAborted)?;
+
+                result
             }
             Statement::Move(to, query) => {
-                Transaction::run(&mut self.bag_bundle, |t| {
-                    t.transfer(&self.current_bag, &to, &self.env, query)
-                    .map_err(|_| ReplError::BagError)
-                    .map(ReplOutput::Transferd)
-                }).map_err(|e| {
-                    match e {
-                        TransactionError::Failed(e) => e,
-                        TransactionError::Aborted => ReplError::TranscationAborted,
-                    }
-                })
+                let mut trans = Transaction::new(&self.bag_bundle);
+                
+                let result = trans.transfer(&self.current_bag, &to, &self.env, query)
+                .map_err(|_| ReplError::BagError)
+                .map(ReplOutput::Transferd);
+
+                self.bag_bundle = trans.commit().map_err(|_|ReplError::TranscationAborted)?;
+
+                result
             },
             Statement::Pop(expression) => {
                 let Ok(value) = self.env.eval_expr(&expression) else {
                     return Err(ReplError::EvalError);
                 };
 
-                Transaction::run(&mut self.bag_bundle, |t| {
-                    match t.pop(&self.current_bag, &value) {
-                        Ok(false) => Ok(ReplOutput::No),
-                        Ok(true) => Ok(ReplOutput::Ack),
-                        Err(_) => Err(ReplError::BagError),
-                    }
-                }).map_err(|e| {
-                    match e {
-                        TransactionError::Failed(e) => e,
-                        TransactionError::Aborted => ReplError::TranscationAborted,
-                    }
-                })
+                let mut trans = Transaction::new(&self.bag_bundle);
+                
+                let result = match trans.pop(&self.current_bag, &value) {
+                    Ok(false) => Ok(ReplOutput::No),
+                    Ok(true) => Ok(ReplOutput::Ack),
+                    Err(_) => Err(ReplError::BagError),
+                };
+
+                self.bag_bundle = trans.commit().map_err(|_| ReplError::TranscationAborted)?;
+
+                result
             }
             Statement::Inspect(ex) => {
                 return Ok(ReplOutput::Notice(format!("{ex:?}")));
