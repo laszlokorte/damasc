@@ -5,7 +5,7 @@ use crate::{
     expression::{Expression, ExpressionSet},
     identifier::Identifier,
     pattern::Pattern,
-    query::{DeletionQuery, Insertion, Predicate, ProjectionQuery, TransferQuery, UpdateQuery},
+    query::{DeletionQuery, Insertion, Predicate, ProjectionQuery, TransferQuery, UpdateQuery}, graph::Connection,
 };
 
 #[derive(Clone)]
@@ -32,6 +32,9 @@ pub enum Statement<'a, 'b> {
     LoadBundle(Cow<'b, str>),
     UseBag(Identifier<'b>, Option<Predicate<'b>>),
     DropBag(Identifier<'b>),
+    Connect(Connection<'b>),
+    Disconnect(usize),
+    ListConnections,
     TellBag,
     ListBags,
 }

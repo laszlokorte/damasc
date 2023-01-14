@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use nom::branch::alt;
 use nom::bytes::complete::{is_not, tag, take_until};
-use nom::character::complete::{alpha1, alphanumeric1, char, i64, multispace0, space0};
+use nom::character::complete::{alpha1, alphanumeric1, char, i64, multispace0, space0, space1};
 use nom::combinator::{all_consuming, map, opt, recognize, value, verify};
 use nom::error::ParseError;
 use nom::multi::{
@@ -13,6 +13,7 @@ use nom::IResult;
 
 use crate::assignment::{Assignment, AssignmentSet};
 use crate::expression::*;
+use crate::graph::{Connection, Tester, Consumer, Producer, Signature};
 use crate::identifier::Identifier;
 use crate::literal::Literal;
 use crate::pattern::*;
@@ -652,7 +653,7 @@ pub fn pattern<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
     ))(input)
 }
 
-pub(crate) fn assignment_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'v, 'w>> {
+pub(crate) fn assignment_multi<'v>(input: &str) -> IResult<&str, AssignmentSet<'v,'v>> {
     map(
         delimited(
             ws(tag("let ")),
@@ -668,7 +669,7 @@ pub(crate) fn assignment_multi<'v, 'w>(input: &str) -> IResult<&str, Statement<'
             ),
             alt((ws(tag(";")), space0)),
         ),
-        |assignments| Statement::AssignSet(AssignmentSet { assignments }),
+        |assignments| AssignmentSet { assignments },
     )(input)
 }
 
@@ -718,6 +719,7 @@ fn bag_creation<'a,'b>(input:&str) -> IResult<&str, (Identifier<'a>, Option<Pred
         },
     )(input)
 }
+
 
 pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
     all_consuming(alt((
@@ -945,12 +947,15 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
             Statement::DropBag,
         ),
         map(bag_creation, |(name, pred)| Statement::UseBag(name, pred)),
+        map(preceded(ws(tag(".connection ")), connection), Statement::Connect),
+        map(preceded(ws(tag(".disconnect ")), nom::character::complete::u64), |id| Statement::Disconnect(id as usize)),
         alt((
-            all_consuming(assignment_multi),
+            map(all_consuming(assignment_multi), Statement::AssignSet),
             all_consuming(try_match_multi),
         )),
         map(expression_multi, Statement::Eval),
         value(Statement::Noop, all_consuming(space0)),
+        value(Statement::ListConnections, all_consuming(ws(tag(".connections")))),
     )))(input)
 }
 
@@ -969,4 +974,134 @@ pub(crate) fn bundle_line<'x>(input:&str) -> IResult<&str, BundleCommand<'x>> {
         map(bag_creation, |(name, pred)| BundleCommand::Bag(name, pred)),
         map(expression_multi, BundleCommand::Values),
     ))(input)
+}
+/*
+.connect {
+    &a.consume x;y where x > y
+    &b.consume z
+    &c.produce [x,y,k]
+    &d.test x where x > 50
+    let k = z*z
+    where z > x
+}
+*/
+
+fn predicate<'x>(input:&str) -> IResult<&str, (Vec<Pattern<'x>>, Option<Expression<'x>>)> {
+    tuple((
+        terminated(separated_list1(ws(tag(";")), ws(pattern)), opt(ws(tag(";")))),
+        opt(preceded(ws(tag("where")), expression)),
+    ))(input)
+}
+
+fn connection_tester<'x>(input:&str) -> IResult<&str, Tester<'x>> {
+    map(separated_pair(delimited(tag("&"), identifier, tag(".test")), space1,  
+    predicate
+    ), |(test_bag, (patterns, guard))| Tester {
+        test_bag,
+        patterns,
+        guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
+    })(input)
+}
+
+fn connection_consumer<'x>(input:&str) -> IResult<&str, Consumer<'x>> {
+    map(separated_pair(delimited(tag("&"), identifier,  tag(".consume")), space1,  
+    predicate
+    ), |(source_bag, (patterns, guard))| Consumer {
+        source_bag,
+        patterns,
+        guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
+    })(input)
+}
+
+fn connection_producer<'x>(input:&str) -> IResult<&str, Producer<'x>> {
+    map(separated_pair(delimited(tag("&"), identifier, tag(".produce")), space1,  
+    separated_list1(ws(tag(";")), ws(expression))
+    ), |(target_bag, projections)| Producer {
+        target_bag,
+        projections,
+    })(input)
+}
+
+fn consumer_pattern<'a>(input:&str) -> IResult<&str, AssignmentSet<'a,'a>>{
+    preceded(ws(tag("let ")), assignment_multi)(input)
+
+}
+
+fn consumer_guard<'x>(input:&str) -> IResult<&str, Expression<'x>>{
+    preceded(ws(tag("guard ")), expression)(input)
+}
+
+fn connection_signature<'x>(input:&str) -> IResult<&str, Signature<'x>>{
+    map(
+        pair(ws(identifier), delimited(ws(tag("(")), opt(pattern), ws(tag(")")))),
+        |(name, parameter)| Signature{name, parameter: parameter.unwrap_or(Pattern::Discard)}
+    )(input)
+}
+
+enum ConnectionComponent<'a, 'b> {
+    Tester(Tester<'a>),
+    Consumer(Consumer<'a>),
+    Producer(Producer<'a>),
+    Pattern(AssignmentSet<'a, 'b>),
+    Guard(Expression<'a>),
+}
+
+fn connection<'x>(input: &str) -> IResult<&str, Connection<'x>> {
+    let (input, (signature, parts)) = pair(opt(connection_signature), delimited(ws(tag("{")), 
+        terminated(separated_list0(ws(tag(";")), alt((
+        map(ws(connection_tester), ConnectionComponent::Tester),
+        map(ws(connection_consumer), ConnectionComponent::Consumer),
+        map(ws(connection_producer), ConnectionComponent::Producer),
+        map(ws(consumer_pattern), ConnectionComponent::Pattern),
+        map(ws(consumer_guard), ConnectionComponent::Guard),
+    ))), opt(ws(tag(";")))), ws(tag("}"))))(input)?;
+
+    let consumers = parts.iter().filter_map(|p| {
+        if let ConnectionComponent::Consumer(c) = p {
+            Some(c)
+        } else {
+            None
+        }
+    }).cloned().collect();
+
+    let testers = parts.iter().filter_map(|p| {
+        if let ConnectionComponent::Tester(c) = p {
+            Some(c)
+        } else {
+            None
+        }
+    }).cloned().collect();
+
+    let producers = parts.iter().filter_map(|p| {
+        if let ConnectionComponent::Producer(c) = p {
+            Some(c)
+        } else {
+            None
+        }
+    }).cloned().collect();
+
+    let patterns = parts.iter().find_map(|p| {
+        if let ConnectionComponent::Pattern(c) = p {
+            Some(c)
+        } else {
+            None
+        }
+    }).cloned();
+
+    let guard = parts.iter().find_map(|p| {
+        if let ConnectionComponent::Guard(c) = p {
+            Some(c)
+        } else {
+            None
+        }
+    }).cloned();
+
+    Ok((input, Connection {
+        signature,
+        consumers,
+        producers,
+        testers,
+        patterns: patterns.unwrap_or(AssignmentSet{assignments:vec![]}),
+        guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
+    }))
 }

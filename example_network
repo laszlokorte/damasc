@@ -1,0 +1,16 @@
+.bag a
+1;2;3
+
+.bag b
+true;true;true
+
+.bag c
+[];{}
+
+.bag d
+99
+
+.connection foo(x){
+&b.test x; where (x != y);
+&a.consume [x,];y; where ((2 * x) > y);
+}

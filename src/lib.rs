@@ -16,6 +16,7 @@ pub mod repl;
 pub mod statement;
 pub mod value;
 pub mod wasm;
+pub mod graph;
 
 use expression::*;
 use identifier::Identifier;

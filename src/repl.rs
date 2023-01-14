@@ -8,6 +8,7 @@ use crate::bag_bundle::BagBundle;
 use crate::bag_bundle::Transaction;
 use crate::env::Environment;
 use crate::expression::*;
+use crate::graph::Graph;
 use crate::identifier::Identifier;
 use crate::matcher::Matcher;
 use crate::parser::{full_expression, pattern, bundle_line, BundleCommand};
@@ -21,6 +22,7 @@ pub struct Repl<'b, 'i, 's, 'v> {
     pub env: Environment<'i, 's, 'v>,
     pub current_bag: Identifier<'s>,
     pub bag_bundle: BagBundle<'b, 'i, 's, 'v>,
+    pub bag_graph: Graph<'s>,
 }
 
 impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
@@ -87,6 +89,7 @@ pub enum ReplError {
     TranscationAborted,
     TransferError,
     GuardError,
+    ConnectionError,
 }
 
 impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
@@ -110,6 +113,7 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
             env,
             current_bag,
             bag_bundle,
+            bag_graph: Graph::new(),
         }
     }
 
@@ -227,9 +231,14 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
 
                             if created {
                                 bag_counter += 1;
+                            } else {
+                                return Err(ReplError::BagError)
                             }
                         },
                         BundleCommand::Values(expr) => {
+                            if bag_counter<1 {
+                                return Err(ReplError::BagError)
+                            }
                             for ex in expr.expressions {
                                 let r = trans.insert_one(&self.current_bag, &self.env, &ex)
                                 .map_err(|_| ReplError::TranscationAborted)?;
@@ -543,6 +552,22 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 Ok(ReplOutput::Notice(format!("{result}")))
             }
             Statement::Pattern(pattern) => Ok(ReplOutput::Notice(format!("{pattern:?}"))),
+            Statement::Connect(con) => {
+                self.bag_graph.connections.push(con.clone());
+                Ok(ReplOutput::Notice(format!("Connection created:\n\n{con}")))
+            },
+            Statement::Disconnect(id) => {
+                if id < self.bag_graph.connections.len() {
+                    self.bag_graph.connections.swap_remove(id);
+                    Ok(ReplOutput::Notice("Connection removed".into()))
+
+                } else {
+                    Err(ReplError::ConnectionError)
+                }
+            }
+            Statement::ListConnections => {
+                return Ok(ReplOutput::Notice(format!("Connections: {:?}", self.bag_graph.connections)));
+            },
         }
     }
 }
