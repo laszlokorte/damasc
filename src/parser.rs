@@ -940,6 +940,10 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
             preceded(ws(tag(".bag ")), all_consuming(ws(identifier))),
             |p| Statement::UseBag(p, None),
         ),
+        map(
+            preceded(ws(tag(".drop ")), all_consuming(ws(identifier))),
+            Statement::DropBag,
+        ),
         map(bag_creation, |(name, pred)| Statement::UseBag(name, pred)),
         alt((
             all_consuming(assignment_multi),

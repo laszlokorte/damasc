@@ -233,4 +233,10 @@ impl<'b, 'i, 's, 'v> Transaction<'b, 'i, 's, 'v> {
 
         Ok(b.to_mut().insert_one(env, expr))
     }
+
+    pub(crate) fn drop_bag(&mut self, bag_name: Identifier<'s>) -> Result<bool, TransactionError> {
+        let working_copy = self.get_working_copy_mut()?;
+        
+        Ok(working_copy.to_mut().bags.remove(&bag_name).is_some())
+    }
 }

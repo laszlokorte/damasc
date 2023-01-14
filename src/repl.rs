@@ -152,6 +152,22 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                         .join(", ")
                 )))
             }
+            Statement::DropBag(bag_id) => {
+                if self.current_bag == bag_id {
+                    Err(ReplError::BagError)
+                } else {
+                    let mut trans = Transaction::new(&self.bag_bundle);
+                    let result = trans.drop_bag(bag_id).map_err(|_| ReplError::TranscationAborted)?;
+
+                    if result {
+                        self.bag_bundle = trans.commit().map_err(|_| ReplError::TranscationAborted)?;
+
+                        Ok(ReplOutput::Notice("BAG REMOVED".into()))
+                    } else {
+                        Err(ReplError::BagError)
+                    }
+                }
+            }
             Statement::UseBag(bag_id, pred) => {
                 self.current_bag = bag_id.clone();
                 let wants_create = pred.is_some();

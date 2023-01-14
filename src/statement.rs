@@ -31,6 +31,7 @@ pub enum Statement<'a, 'b> {
     Export(Cow<'b, str>),
     LoadBundle(Cow<'b, str>),
     UseBag(Identifier<'b>, Option<Predicate<'b>>),
+    DropBag(Identifier<'b>),
     TellBag,
     ListBags,
 }
