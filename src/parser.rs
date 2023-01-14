@@ -580,9 +580,9 @@ fn pattern_object<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
             map(
                 tuple((
                     separated_list0(ws(ws(tag(","))), object_prop_pattern),
-                    opt(preceded(ws(tag(",")), pattern_rest)),
+                    opt(preceded(ws(tag(",")), opt(pattern_rest))),
                 )),
-                |(props, rest)| Pattern::Object(props, rest.unwrap_or(Rest::Exact)),
+                |(props, rest)| Pattern::Object(props, rest.flatten().unwrap_or(Rest::Exact)),
             ),
         )),
         ws(tag("}")),
@@ -606,9 +606,9 @@ fn pattern_array<'v>(input: &str) -> IResult<&str, Pattern<'v>> {
             map(
                 tuple((
                     separated_list0(ws(tag(",")), map(pattern, ArrayPatternItem::Pattern)),
-                    opt(preceded(ws(tag(",")), pattern_rest)),
+                    opt(preceded(ws(tag(",")), opt(pattern_rest))),
                 )),
-                |(items, rest)| Pattern::Array(items, rest.unwrap_or(Rest::Exact)),
+                |(items, rest)| Pattern::Array(items, rest.flatten().unwrap_or(Rest::Exact)),
             ),
         )),
         ws(tag("]")),

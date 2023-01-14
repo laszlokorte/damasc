@@ -129,3 +129,11 @@ false = !true;false = !true
 false = false;false = false;
 true = !false;true = !false;
 false = !true;false = !true;
+[x,] = [1]
+[x,] = [1,]
+[x] = [1,]
+[x] = [1]
+{x} = {x:5}
+{x,} = {x:5}
+{x,} = {x:5,}
+{x} = {x:5,}
