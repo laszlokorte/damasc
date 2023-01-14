@@ -15,6 +15,12 @@ pub struct Assignment<'a, 'b> {
     pub expression: Expression<'b>,
 }
 
+impl std::fmt::Display for Assignment<'_,'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} = {};", self.pattern, self.expression)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct AssignmentSet<'a, 'b> {
     pub assignments: Vec<Assignment<'a, 'b>>,
