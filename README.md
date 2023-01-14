@@ -443,6 +443,15 @@ DELETED 1
 INSERTED 1
 ```
 
+If you do not need a bag anymore you can delete it (and all the values in it). For deleting a bag it must not be the currently selected bag.
+
+```
+>> .bag init
+SWITCHED BAG
+>> .drop not_needed
+BAG REMOVED
+```
+
 Values can be transfered from one bag (the source) to another (the target). The source bag must be active bag (selected via `.bag thename`). In the following examples the bag named `quelle` will be used as source bag and the bag named `ziel` will be used as target. First we create the two bags:
 
 ```
@@ -452,7 +461,7 @@ BAG CREATED
 BAG CREATED
 ```
 
-Then we select the `.quelle` bag and insert a few values:
+Then we select the `quelle` bag and insert a few values:
 
 ```
 >> .bag quelle
