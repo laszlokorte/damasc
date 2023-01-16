@@ -41,7 +41,7 @@ pub struct Connection<'s> {
 
 impl<'s> Connection<'s> {
 
-    fn bags(&'s self) -> impl Iterator<Item = &Identifier<'s>> {
+    pub(crate) fn bags(&'s self) -> impl Iterator<Item = &Identifier<'s>> {
         self.testers.iter().map(|t| &t.test_bag).chain(
             self.consumers.iter().map(|c| &c.source_bag)
         ).chain(
@@ -131,33 +131,4 @@ pub struct GraphQuery<'s> {
 pub struct GraphInsertion<'s> {
     pub bag: Identifier<'s>,
     pub expressions: Vec<Expression<'s>>,
-}
-
-impl<'s> Tester<'s> {
-    fn into_query(&self) -> GraphQuery<'s> {
-        GraphQuery {
-            bag: self.test_bag.clone(),
-            patterns: self.patterns.clone(),
-            guard: self.guard.clone(),
-        }
-    }
-}
-
-impl<'s> Consumer<'s> {
-    fn into_query(&self) -> GraphQuery<'s> {
-        GraphQuery {
-            bag: self.source_bag.clone(),
-            patterns: self.patterns.clone(),
-            guard: self.guard.clone(),
-        }
-    }
-}
-
-impl<'s> Producer<'s> {
-    fn into_query(&self) -> GraphInsertion<'s> {
-        GraphInsertion {
-            bag: self.target_bag.clone(),
-            expressions: self.projections.clone(),
-        }
-    }
 }

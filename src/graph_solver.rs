@@ -1,100 +1,88 @@
-use crate::{bag_bundle::BagBundle, graph::{Connection, Consumer, Tester, Producer}, env::{Environment, EvalError}, matcher::Matcher};
+use crate::{bag_bundle::BagBundle, env::Environment, graph::{Connection, Tester, Consumer, Producer}, matcher::Matcher};
 use gen_iter::gen_iter;
 
-struct GraphSolver<'b, 'e, 'i,'s,'v> {
-    env: &'e Environment<'i,'s,'v>,
-    bag_bundle: &'b BagBundle<'b, 'i,'s,'v>,
+pub(crate) struct GraphSolver<'ee,'bb, 'ei,'es, 'ev> {
+    env: &'ee Environment<'ei,'es, 'ev>,
+    bag_bundle: &'bb BagBundle<'bb, 'ei,'es, 'ev>,
 }
-
-struct ConnectionBinding {
-
-}
-
-
-impl<'b:'s, 'e:'b, 'i:'s,'s,'v> GraphSolver<'b, 'e, 'i,'s,'v> {
-    fn new(env: &'e Environment<'i,'s,'v>, bag_bundle: &'b BagBundle<'b, 'i,'s,'v>) -> Self {
+impl<'ee,'bb:'ee, 'ei,'es, 'ev> GraphSolver<'ee,'bb,'ei,'es, 'ev> {
+    pub(crate) fn new(env: &'ee Environment<'ei,'es, 'ev>, bag_bundle: &'bb BagBundle<'bb, 'ei,'es, 'ev>) -> Self {
         Self {
             env,
-            bag_bundle
+            bag_bundle,
         }
     }
 
-    fn solve_connection<'c:'b>(&'c self, connection: &'c Connection<'i>) -> Box<dyn Iterator<Item = ConnectionBinding> + 'e> {
+    fn solve<'slf, 'con_s:'es, 'con:'es>(&'slf self, connection: &'con Connection<'con_s>)
+    -> Box<dyn Iterator<Item = Matcher<'ei,'es, 'ev,'ee>> + 'slf> {
+        let matcher = Matcher::new(self.env);
+        
         Box::new(gen_iter!(move {
-            let matcher = Matcher::new(self.env);
-            for t in self.solve_connection_testers(&connection.testers, matcher) {
-                for c in self.solve_connection_consumers(&connection.consumers, t) {
-                    for p in self.solve_connection_producers(&connection.producers, c) {
-                        yield ConnectionBinding{};
+            for mt in self.solve_testers(&connection.testers, matcher) {
+                for mc in self.solve_consumers(&connection.consumers, mt) {
+                    for mp in self.solve_producers(&connection.producers, mc) {
+                        yield mp
                     }
                 }
             }
         }))
     }
 
-    fn solve_connection_testers<'t:'b,'m:'b>(&self, testers: &'t [Tester<'s>], matcher: Matcher<'i, 's, 'v, 'e>) -> 
-    Box<dyn Iterator<Item = Matcher<'i, 's, 'v, 'e>> + 'e> {
+    fn solve_testers<'slf, 'con,'con_s:'es, 'testers:'es>(&'slf self, testers: &'testers [Tester], matcher: Matcher<'ei,'es, 'ev,'ee>) 
+    -> Box<dyn Iterator<Item = Matcher<'ei,'es, 'ev,'ee>> + 'slf>{
         let Some(tester) = testers.get(0) else {
-            return Box::new(Some(matcher.clone()).into_iter())
+            return Box::new(Some(matcher).into_iter())
         };
-
-        let Some(bag) = self.bag_bundle.bags.get(&tester.test_bag) else {
+        let Some(test_bag) = self.bag_bundle.bags.get(&tester.test_bag) else {
             return Box::new(None.into_iter());
         };
-        
+        let duplicates = Vec::with_capacity(tester.patterns.len());
+        let matcher = Matcher::new(self.env);
         
         Box::new(gen_iter!(move {
-            for m in bag.cross_query_helper(
-                false,
-                0,
-                [0; 6],
-                matcher,
-                &tester.patterns,
-            ) {
-                yield m
+            for m in test_bag.cross_query_helper(false, duplicates, matcher, &tester.patterns) {
+                for mm in self.solve_testers(&testers[1..], m) {
+                    yield mm;
+                }
             }
         }))
     }
 
-    fn solve_connection_consumers<'x:'b>(&self, consumers: &'x [Consumer<'s>], matcher: Matcher<'i, 's, 'v, 'e>) -> 
-    Box<dyn Iterator<Item = Matcher<'i, 's, 'v, 'e>> + 'e> {
+    fn solve_consumers<'slf, 'con,'con_s:'es, 'consumers:'es>(&'slf self, consumers: &'consumers [Consumer], matcher: Matcher<'ei,'es, 'ev,'ee>) 
+    -> Box<dyn Iterator<Item = Matcher<'ei,'es, 'ev,'ee>> + 'slf>{
         let Some(consumer) = consumers.get(0) else {
-            return Box::new(Some(matcher.clone()).into_iter())
+            return Box::new(Some(matcher).into_iter())
         };
-
-        let Some(bag) = self.bag_bundle.bags.get(&consumer.source_bag) else {
+        let Some(test_bag) = self.bag_bundle.bags.get(&consumer.source_bag) else {
             return Box::new(None.into_iter());
         };
-        
+        let duplicates = Vec::with_capacity(consumer.patterns.len());
+        let matcher = Matcher::new(self.env);
         
         Box::new(gen_iter!(move {
-            for m in bag.cross_query_helper(
-                false,
-                0,
-                [0; 6],
-                matcher,
-                &consumer.patterns,
-            ) {
-                yield m
+            for m in test_bag.cross_query_helper(false, duplicates, matcher, &consumer.patterns) {
+                for mm in self.solve_consumers(&consumers[1..], m) {
+                    yield mm;
+                }
             }
         }))
     }
 
-    fn solve_connection_producers(&self, producers: &[Producer<'s>], matcher: Matcher<'i, 's, 'v, 'e>) -> 
-    Box<dyn Iterator<Item = ()> + 'e>  {
+    fn solve_producers<'slf, 'con,'con_s:'es, 'producers:'es>(&'slf self, producers: &'producers [Producer], matcher: Matcher<'ei,'es, 'ev,'ee>) 
+    -> Box<dyn Iterator<Item = Matcher<'ei,'es, 'ev,'ee>> + 'slf>{
         let Some(producer) = producers.get(0) else {
-            return Box::new(Some(()).into_iter())
+            return Box::new(Some(matcher).into_iter())
         };
-
-        let Some(bag) = self.bag_bundle.bags.get(&producer.target_bag) else {
+        let Some(test_bag) = self.bag_bundle.bags.get(&producer.target_bag) else {
             return Box::new(None.into_iter());
         };
-        
+        let matcher = Matcher::new(self.env);
         
         Box::new(gen_iter!(move {
-            yield ()
+            for p in &producer.projections {
+                yield matcher.clone();
+            }
         }))
     }
-
-    
 }
+

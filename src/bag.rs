@@ -102,6 +102,7 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
         }
     }
 
+
     pub(crate) fn query<'e, 'x: 'e>(
         &'x self,
         env: &'e Environment<'i, 's, 'v>,
@@ -116,7 +117,9 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
                 return;
             }
 
-            for m in self.cross_query_helper(query.outer, 0, [0;MAX_JOIN_SIZE], matcher, &query.predicate.patterns) {
+            let duplicates = Vec::with_capacity(query.predicate.patterns.len());
+
+            for m in self.cross_query_helper(query.outer, duplicates, matcher, &query.predicate.patterns) {
                 let mut env = env.clone();
                 m.into_env().merge(&mut env);
                 if let Ok(Value::Boolean(true)) = env.eval_expr(&query.predicate.guard) {
@@ -132,11 +135,10 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
         })
     }
 
-    pub(crate) fn cross_query_helper<'e, 'x: 'e>(
+    pub(crate) fn cross_query_helper<'e, 'x: 'e, 'dup>(
         &'x self,
         outer: bool,
-        depth: usize,
-        skip: [usize; MAX_JOIN_SIZE],
+        mut skip: Vec<usize>,
         matcher: Matcher<'i, 's, 'v, 'e>,
         patterns: &'e [Pattern<'s>],
     ) -> Box<dyn Iterator<Item = Matcher<'i, 's, 'v, 'e>> + 'e> {
@@ -146,7 +148,7 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
 
         Box::new(gen_iter!(move {
             for (idx, item) in self.items.iter().enumerate() {
-                if !outer && skip[0..depth].contains(&idx) {
+                if !outer && skip.contains(&idx) {
                     continue;
                 }
 
@@ -155,12 +157,11 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
                     continue;
                 };
 
-                let mut skip_x = skip;
-                skip_x[depth] = idx;
-
-                for mm in self.cross_query_helper(outer, depth+1, skip_x, m, &patterns[1..]) {
+                skip.push(idx);
+                for mm in self.cross_query_helper(outer, skip.clone(), m, &patterns[1..]) {
                     yield mm;
                 }
+                skip.pop();
             }
         }))
     }
@@ -336,5 +337,22 @@ impl<'x, 'i, 's, 'v> ValueBagTransfer<'x, 'i, 's, 'v> {
         });
 
         short_circuit.unwrap_or(TransferResult::Success(counter))
+    }
+}
+
+
+
+struct BagQueryIterator<'dup, 'i, 's, 'v, 'e> {
+    duplicates: &'dup mut Vec<usize>,
+    outer: bool,
+    matcher: Matcher<'i, 's, 'v, 'e>,
+    patterns: &'e [Pattern<'s>],
+}
+
+impl<'dup, 'i, 's, 'v, 'e> Iterator for BagQueryIterator<'dup, 'i, 's, 'v, 'e> {
+    type Item  = Matcher<'i, 's, 'v, 'e>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
     }
 }

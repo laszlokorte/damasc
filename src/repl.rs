@@ -10,6 +10,7 @@ use crate::bag_bundle::Transaction;
 use crate::env::Environment;
 use crate::expression::*;
 use crate::graph::Graph;
+use crate::graph_solver::GraphSolver;
 use crate::identifier::Identifier;
 use crate::matcher::Matcher;
 use crate::parser::{full_expression, pattern, bundle_line, BundleCommand};
@@ -556,6 +557,12 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 } else {
                     Ok(ReplOutput::Notice(format!("Invalid, missing bags: {:?}", missing)))
                 }
+            },
+            Statement::Solve(id) => {
+                let solver = GraphSolver::new(&self.env, &self.bag_bundle);
+                //solver.solve_connection(self.bag_graph.connections.get(&id).unwrap());
+
+                return Ok(ReplOutput::Notice(format!("Not implemented")));
             },
         }
     }
