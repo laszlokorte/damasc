@@ -22,13 +22,13 @@ pub enum PatternFail {
 
 #[derive(Clone, Debug)]
 pub struct Matcher<'i, 's, 'v, 'e> {
-    pub env: &'e Environment<'i, 's, 'v>,
-    pub bindings: BTreeMap<Identifier<'i>, Value<'s, 'v>>,
+    pub outer_env: &'e Environment<'i, 's, 'v>,
+    pub local_env: Environment<'i, 's, 'v>,
 }
 
 impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
-    pub fn apply_to_env<'x>(&mut self, env: &'x mut Environment<'i, 's, 'v>) {
-        env.bindings.append(&mut self.bindings);
+    pub fn into_env<'x>(self) -> Environment<'i, 's, 'v> {
+        self.local_env
     }
 
     pub fn match_pattern<'x>(
@@ -80,7 +80,7 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
             name: Cow::Owned(name.name.to_string()),
         };
 
-        match self.bindings.entry(id) {
+        match self.local_env.bindings.entry(id) {
             Entry::Occupied(entry) => {
                 if value == entry.get() {
                     Ok(())
@@ -121,7 +121,7 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
                     key: PropertyKey::Expression(exp),
                     value,
                 }) => {
-                    let Ok(Value::String(k)) = self.env.eval_expr(exp) else {
+                    let Ok(Value::String(k)) = self.outer_env.eval_expr(exp) else {
                         return Err(PatternFail::EvalError);
                     };
                     (k.clone(), value.clone())
@@ -181,7 +181,7 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
     }
 
     pub fn clear(&mut self) {
-        self.bindings.clear();
+        self.local_env.bindings.clear();
     }
 
     fn match_literal(&self, literal: &Literal, value: &Value) -> Result<(), PatternFail> {
@@ -202,12 +202,10 @@ impl<'i, 's, 'v, 'e> Matcher<'i, 's, 'v, 'e> {
             Err(PatternFail::LiteralMismatch)
         }
     }
-
-    pub fn make_env(&mut self) -> Environment<'i, 's, 'v> {
-        let mut new_env = self.env.clone();
-
-        self.apply_to_env(&mut new_env);
-
-        new_env
+    pub fn new<'x:'e>(env: &'x Environment<'i, 's, 'v>) -> Self {
+        Self {
+            outer_env: &env,
+            local_env: Environment::new(),
+        }
     }
 }

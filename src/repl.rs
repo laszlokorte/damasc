@@ -1,7 +1,8 @@
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::{self, BufRead, LineWriter};
+use std::ops::Sub;
 
 use crate::bag::{DeletionResult, InsertionResult, TransferResult, UpdateResult};
 use crate::bag_bundle::BagBundle;
@@ -36,12 +37,12 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
 }
 
 #[derive(Debug)]
-pub enum ReplOutput<'s, 'v> {
+pub enum ReplOutput<'x, 's, 'v> {
     Ack,
     No,
     PatternMissmatch,
     Values(Vec<Value<'s, 'v>>),
-    Bindings(HashMap<Identifier<'s>, Value<'s, 'v>>),
+    Bindings(BTreeMap<Identifier<'x>, Value<'s, 'v>>),
     Deleted(usize),
     Inserted(usize),
     Updated(usize),
@@ -49,7 +50,7 @@ pub enum ReplOutput<'s, 'v> {
     Notice(String),
 }
 
-impl<'s, 'v> std::fmt::Display for ReplOutput<'s, 'v> {
+impl<'x, 's, 'v> std::fmt::Display for ReplOutput<'x, 's, 'v> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ReplOutput::Ack => writeln!(f, "OK."),
@@ -117,7 +118,7 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
         }
     }
 
-    pub fn execute(&mut self, stmt: Statement<'s, 's>) -> Result<ReplOutput<'s, 'v>, ReplError> {
+    pub fn execute(&mut self, stmt: Statement<'s, 's>) -> Result<ReplOutput<'i, 's, 'v>, ReplError> {
         match stmt {
             Statement::Noop => {
                 self.env.clear();
@@ -435,7 +436,6 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                     return Err(ReplError::AssignmentError);
                 }
 
-                let mut bindings = HashMap::new();
                 let result = assignments.assignments.iter().fold(
                     Ok(Ok(self.env.clone())),
                     |acc,
@@ -446,11 +446,7 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                         let Ok(Ok(mut tmp_env)) = acc else {
                         return acc;
                     };
-
-                        let mut matcher = Matcher {
-                            env: &tmp_env.clone(),
-                            bindings: BTreeMap::new(),
-                        };
+                        let mut matcher = Matcher::new(&tmp_env);
 
                         let result = match tmp_env.eval_expr(expression) {
                             Ok(r) => r,
@@ -461,16 +457,7 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
 
                         match matcher.match_pattern(pattern, &result) {
                             Ok(_) => {
-                                for (id, v) in &matcher.bindings {
-                                    bindings.insert(
-                                        Identifier {
-                                            name: Cow::Owned(id.name.as_ref().to_owned()),
-                                        },
-                                        v.clone(),
-                                    );
-                                }
-
-                                matcher.apply_to_env(&mut tmp_env);
+                                matcher.into_env().merge(&mut tmp_env);
                                 Ok(Ok(tmp_env))
                             }
                             Err(e) => Ok(Err(e)),
@@ -479,7 +466,7 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 );
 
                 match result {
-                    Ok(Ok(_new_env)) => Ok(ReplOutput::Bindings(bindings)),
+                    Ok(Ok(new_env)) => Ok(ReplOutput::Bindings(new_env.bindings.clone())),
                     Ok(Err(_)) => Ok(ReplOutput::PatternMissmatch),
                     Err(e) => Err(e),
                 }
@@ -489,7 +476,7 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                     return Err(ReplError::AssignmentError);
                 }
 
-                let mut bindings = HashMap::new();
+                let mut bindings = Environment::new();
                 let result = assignments.assignments.iter().fold(
                     Ok(Ok(self.env.clone())),
                     |acc,
@@ -501,10 +488,7 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                         return acc;
                     };
 
-                        let mut matcher = Matcher {
-                            env: &tmp_env.clone(),
-                            bindings: BTreeMap::new(),
-                        };
+                        let mut matcher = Matcher::new(&tmp_env);
 
                         let result = match tmp_env.eval_expr(expression) {
                             Ok(r) => r,
@@ -515,16 +499,8 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
 
                         match matcher.match_pattern(pattern, &result) {
                             Ok(_) => {
-                                for (id, v) in &matcher.bindings {
-                                    bindings.insert(
-                                        Identifier {
-                                            name: Cow::Owned(id.name.as_ref().to_owned()),
-                                        },
-                                        v.clone(),
-                                    );
-                                }
-
-                                matcher.apply_to_env(&mut tmp_env);
+                                matcher.local_env.clone().merge(&mut bindings);
+                                matcher.local_env.clone().merge(&mut tmp_env);
                                 Ok(Ok(tmp_env))
                             }
                             Err(e) => Ok(Err(e)),
@@ -535,7 +511,7 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 match result {
                     Ok(Ok(new_env)) => {
                         self.env = new_env;
-                        Ok(ReplOutput::Bindings(bindings))
+                        Ok(ReplOutput::Bindings(bindings.bindings.clone()))
                     }
                     Ok(Err(_)) => Ok(ReplOutput::PatternMissmatch),
                     Err(e) => Err(e),
@@ -552,21 +528,34 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 Ok(ReplOutput::Notice(format!("{result}")))
             }
             Statement::Pattern(pattern) => Ok(ReplOutput::Notice(format!("{pattern:?}"))),
-            Statement::Connect(con) => {
-                self.bag_graph.connections.push(con.clone());
-                Ok(ReplOutput::Notice(format!("Connection created:\n\n{con}")))
+            Statement::Connect(name, con) => {
+                if self.bag_graph.connections.contains_key(&name) {
+                    Ok(ReplOutput::Notice(format!("Connection named {name} already exists.")))
+                } else {
+                    self.bag_graph.connections.insert(name, con.clone());
+                    Ok(ReplOutput::Notice(format!("Connection created:\n\n{con}")))
+                }
             },
-            Statement::Disconnect(id) => {
-                if id < self.bag_graph.connections.len() {
-                    self.bag_graph.connections.swap_remove(id);
+            Statement::Disconnect(name) => {
+                if self.bag_graph.connections.remove(&name).is_some() {
                     Ok(ReplOutput::Notice("Connection removed".into()))
-
                 } else {
                     Err(ReplError::ConnectionError)
                 }
             }
             Statement::ListConnections => {
-                return Ok(ReplOutput::Notice(format!("Connections: {:?}", self.bag_graph.connections)));
+                return Ok(ReplOutput::Notice(format!("Connections:\n\n{}\n\nUsing Bags: {:?}", self.bag_graph, self.bag_graph.bags())));
+            },
+            Statement::Validate => {
+                let required_bags = self.bag_graph.bags();
+                let existing_bags = self.bag_bundle.bag_names();
+                let missing = required_bags.sub(&existing_bags);
+
+                if missing.is_empty() {
+                    Ok(ReplOutput::Notice(format!("OK")))
+                } else {
+                    Ok(ReplOutput::Notice(format!("Invalid, missing bags: {:?}", missing)))
+                }
             },
         }
     }

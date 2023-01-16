@@ -947,15 +947,18 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
             Statement::DropBag,
         ),
         map(bag_creation, |(name, pred)| Statement::UseBag(name, pred)),
-        map(preceded(ws(tag(".connection ")), connection), Statement::Connect),
-        map(preceded(ws(tag(".disconnect ")), nom::character::complete::u64), |id| Statement::Disconnect(id as usize)),
+        map(preceded(ws(tag(".connection ")), connection), |con| Statement::Connect(con.signature.name.clone(), con)),
+        map(preceded(ws(tag(".disconnect ")), identifier), Statement::Disconnect),
         alt((
             map(all_consuming(assignment_multi), Statement::AssignSet),
             all_consuming(try_match_multi),
         )),
         map(expression_multi, Statement::Eval),
         value(Statement::Noop, all_consuming(space0)),
-        value(Statement::ListConnections, all_consuming(ws(tag(".connections")))),
+        alt((
+            value(Statement::ListConnections, all_consuming(ws(tag(".connections")))),
+            value(Statement::Validate, all_consuming(ws(tag(".validate")))),
+        )),
     )))(input)
 }
 
@@ -1047,7 +1050,7 @@ enum ConnectionComponent<'a, 'b> {
 }
 
 fn connection<'x>(input: &str) -> IResult<&str, Connection<'x>> {
-    let (input, (signature, parts)) = pair(opt(connection_signature), delimited(ws(tag("{")), 
+    let (input, (signature, parts)) = pair(connection_signature, delimited(ws(tag("{")), 
         terminated(separated_list0(ws(tag(";")), alt((
         map(ws(connection_tester), ConnectionComponent::Tester),
         map(ws(connection_consumer), ConnectionComponent::Consumer),

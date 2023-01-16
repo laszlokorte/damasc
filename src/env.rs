@@ -463,4 +463,17 @@ impl<'i, 's, 'v> Environment<'i, 's, 'v> {
     pub fn identifiers(&self) -> std::collections::HashSet<&Identifier> {
         self.bindings.keys().collect()
     }
+
+    pub fn merge<'e>(mut self, tmp_env: &'e mut Environment<'i, 's, 'v>) {
+        tmp_env.bindings.append(&mut self.bindings);
+    }
+}
+
+
+impl Environment<'_, '_, '_> {
+    pub(crate) fn new() -> Self {
+        Self {
+            bindings: BTreeMap::new(),
+        }
+    }
 }

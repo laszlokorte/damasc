@@ -59,10 +59,7 @@ fn test_patterns() {
     };
 
     for case in tests {
-        let mut matcher = Matcher {
-            env: &env,
-            bindings: BTreeMap::new(),
-        };
+        let mut matcher = Matcher::new(&env);
 
         let Ok((_, Statement::MatchSet(mut assignment_set))) = try_match_multi(case) else {
             unreachable!("Test Pattern and Expression can be parsed: {case}");
@@ -98,10 +95,8 @@ fn test_negative_patterns() {
     };
 
     for case in tests {
-        let mut matcher = Matcher {
-            env: &env,
-            bindings: BTreeMap::new(),
-        };
+        let mut matcher = Matcher::new(&env);
+
         let Ok((_, Statement::MatchSet(mut assignment_set))) = try_match_multi(case) else {
             unreachable!("Test Pattern and Expression can be parsed: {case}");
         };
@@ -137,10 +132,8 @@ fn test_topological_assignments() {
 
     for case in tests {
         let mut tmp_env = env.clone();
-        let mut matcher = Matcher {
-            env: &tmp_env.clone(),
-            bindings: BTreeMap::new(),
-        };
+        let mut matcher = Matcher::new(&env);
+
         let Ok((_, Statement::MatchSet(mut assignment_set))) = try_match_multi(case) else {
             unreachable!("Test Pattern and Expression can be parsed: {case}");
         };
@@ -167,7 +160,7 @@ fn test_topological_assignments() {
                 "Test Expression Value matches the test pattern: {case}"
             );
 
-            matcher.apply_to_env(&mut tmp_env);
+            matcher.local_env.clone().merge(&mut tmp_env);
         }
     }
 }

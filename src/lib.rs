@@ -17,6 +17,7 @@ pub mod statement;
 pub mod value;
 pub mod wasm;
 pub mod graph;
+pub mod graph_solver;
 
 use expression::*;
 use identifier::Identifier;

@@ -32,9 +32,10 @@ pub enum Statement<'a, 'b> {
     LoadBundle(Cow<'b, str>),
     UseBag(Identifier<'b>, Option<Predicate<'b>>),
     DropBag(Identifier<'b>),
-    Connect(Connection<'b>),
-    Disconnect(usize),
+    Connect(Identifier<'b>,Connection<'b>),
+    Disconnect(Identifier<'b>),
     ListConnections,
     TellBag,
     ListBags,
+    Validate,
 }

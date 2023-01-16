@@ -108,10 +108,7 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
         query: &'e ProjectionQuery<'s>,
     ) -> impl Iterator<Item = Result<Value<'s, 'v>, EvalError>> + 'e {
         gen_iter!(move {
-            let matcher = Matcher {
-                env,
-                bindings: BTreeMap::new(),
-            };
+            let matcher = Matcher::new(&env);
             let mut count = 0;
 
             if query.predicate.patterns.len() > MAX_JOIN_SIZE {
@@ -119,9 +116,9 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
                 return;
             }
 
-            for mut m in self.cross_query_helper(query.outer, 0, [0;MAX_JOIN_SIZE], matcher, &query.predicate.patterns) {
+            for m in self.cross_query_helper(query.outer, 0, [0;MAX_JOIN_SIZE], matcher, &query.predicate.patterns) {
                 let mut env = env.clone();
-                m.apply_to_env(&mut env);
+                m.into_env().merge(&mut env);
                 if let Ok(Value::Boolean(true)) = env.eval_expr(&query.predicate.guard) {
                     yield env.eval_expr(&query.projection);
                     count+=1;
@@ -135,7 +132,7 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
         })
     }
 
-    fn cross_query_helper<'e, 'x: 'e>(
+    pub(crate) fn cross_query_helper<'e, 'x: 'e>(
         &'x self,
         outer: bool,
         depth: usize,
@@ -175,10 +172,7 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
     ) -> DeletionResult {
         let mut counter = 0;
         let mut eval_error = false;
-        let mut matcher = Matcher {
-            env: &env.clone(),
-            bindings: BTreeMap::new(),
-        };
+        let mut matcher = Matcher::new(&env);
 
         self.items.retain(|item| {
             if eval_error {
@@ -199,7 +193,7 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
                 true
             } else {
                 let mut env = env.clone();
-                matcher.apply_to_env(&mut env);
+                matcher.local_env.clone().merge(&mut env);
                 let Ok(Value::Boolean(shall_delete)) = env.eval_expr(&deletion.predicate.guard) else {
                     eval_error = true;
                     return true;
@@ -226,10 +220,7 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
     ) -> UpdateResult {
         let mut counter = 0;
 
-        let mut matcher = Matcher {
-            env: &env.clone(),
-            bindings: BTreeMap::new(),
-        };
+        let mut matcher = Matcher::new(&env);
 
         let bag_size = self.items.len();
 
@@ -249,7 +240,7 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
                 continue;
             } else {
                 let mut env = env.clone();
-                matcher.apply_to_env(&mut env);
+                matcher.local_env.clone().merge(&mut env);
                 let Ok(Value::Boolean(should_update)) = env.eval_expr(&update.predicate.guard) else {
                     return UpdateResult::EvalError;
                 };
@@ -296,10 +287,7 @@ impl<'x, 'i, 's, 'v> ValueBagTransfer<'x, 'i, 's, 'v> {
     ) -> TransferResult {
         let mut counter: usize = 0;
         let mut short_circuit: Option<TransferResult> = None;
-        let mut matcher = Matcher {
-            env: &env.clone(),
-            bindings: BTreeMap::new(),
-        };
+        let mut matcher = Matcher::new(&env);
 
         self.source.items.retain(|item| {
             if short_circuit.is_some() {
@@ -321,7 +309,7 @@ impl<'x, 'i, 's, 'v> ValueBagTransfer<'x, 'i, 's, 'v> {
                 true
             } else {
                 let mut env = env.clone();
-                matcher.apply_to_env(&mut env);
+                matcher.local_env.clone().merge(&mut env);
                 let Ok(Value::Boolean(shall_transfer)) = env.eval_expr(&transfer.predicate.guard) else {
                     short_circuit = Some(TransferResult::EvalError);
                     return true;

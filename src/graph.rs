@@ -1,20 +1,28 @@
+use std::collections::{BTreeSet, HashMap};
+
 use crate::{identifier::Identifier, expression::Expression, pattern::Pattern, assignment::AssignmentSet, literal::Literal};
 
 pub struct Graph<'s> {
-    pub(crate) connections: Vec<Connection<'s>>
+    pub(crate) connections: HashMap<Identifier<'s>, Connection<'s>>
 }
 
 impl<'s> Graph<'s> {
     pub(crate) fn new() -> Self {
         Self {
-            connections: vec![],
+            connections: HashMap::new(),
         }
+    }
+
+    pub(crate) fn bags(&'s self) -> BTreeSet<Identifier<'s>> {
+        self.connections.values().flat_map(|con| {
+            con.bags()
+        }).cloned().collect()
     }
 }
 
 impl std::fmt::Display for Graph<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for con in &self.connections {
+        for con in self.connections.values() {
             writeln!(f,"{con}")?;
         }
         Ok(())
@@ -23,7 +31,7 @@ impl std::fmt::Display for Graph<'_> {
 
 #[derive(Clone,Debug)]
 pub struct Connection<'s> {
-    pub(crate) signature: Option<Signature<'s>>,
+    pub(crate) signature: Signature<'s>,
     pub(crate) consumers: Vec<Consumer<'s>>,
     pub(crate) producers: Vec<Producer<'s>>,
     pub(crate) testers: Vec<Tester<'s>>,
@@ -31,12 +39,21 @@ pub struct Connection<'s> {
     pub(crate) guard: Expression<'s>,
 }
 
+impl<'s> Connection<'s> {
+
+    fn bags(&'s self) -> impl Iterator<Item = &Identifier<'s>> {
+        self.testers.iter().map(|t| &t.test_bag).chain(
+            self.consumers.iter().map(|c| &c.source_bag)
+        ).chain(
+            self.producers.iter().map(|p| &p.target_bag)
+        )
+    }
+}
+
 impl std::fmt::Display for Connection<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, ".connection ")?;
-        if let Some(sig) = &self.signature {
-            write!(f, "{}({})", sig.name, sig.parameter)?;
-        }
+        write!(f, "{}({})", self.signature.name, self.signature.parameter)?;
         writeln!(f,"{{")?;
 
         for c in &self.testers {
@@ -104,4 +121,43 @@ pub(crate) struct Tester<'s> {
     pub(crate) test_bag: Identifier<'s>,
     pub(crate) patterns: Vec<Pattern<'s>>,
     pub(crate) guard: Expression<'s>,
+}
+
+pub struct GraphQuery<'s> {
+    pub bag: Identifier<'s>,
+    pub patterns: Vec<Pattern<'s>>,
+    pub guard: Expression<'s>,
+}
+pub struct GraphInsertion<'s> {
+    pub bag: Identifier<'s>,
+    pub expressions: Vec<Expression<'s>>,
+}
+
+impl<'s> Tester<'s> {
+    fn into_query(&self) -> GraphQuery<'s> {
+        GraphQuery {
+            bag: self.test_bag.clone(),
+            patterns: self.patterns.clone(),
+            guard: self.guard.clone(),
+        }
+    }
+}
+
+impl<'s> Consumer<'s> {
+    fn into_query(&self) -> GraphQuery<'s> {
+        GraphQuery {
+            bag: self.source_bag.clone(),
+            patterns: self.patterns.clone(),
+            guard: self.guard.clone(),
+        }
+    }
+}
+
+impl<'s> Producer<'s> {
+    fn into_query(&self) -> GraphInsertion<'s> {
+        GraphInsertion {
+            bag: self.target_bag.clone(),
+            expressions: self.projections.clone(),
+        }
+    }
 }

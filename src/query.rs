@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use crate::{
     env::Environment,
     expression::{Expression, ExpressionSet},
@@ -93,16 +91,13 @@ pub(crate) fn check_value<'s, 'v>(
         }
     }
 
-    let mut matcher = Matcher {
-        env,
-        bindings: BTreeMap::new(),
-    };
+    let mut matcher = Matcher::new(env);
 
     let Ok(()) = matcher.match_pattern(&pred.pattern, val) else {
         return false;
     };
 
-    let local_env = matcher.make_env();
+    let local_env = matcher.into_env();
 
     let Ok(Value::Boolean(true)) = local_env.eval_expr(&pred.guard) else {
         return false;
