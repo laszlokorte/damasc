@@ -9,7 +9,7 @@ use crate::bag_bundle::BagBundle;
 use crate::bag_bundle::Transaction;
 use crate::env::Environment;
 use crate::expression::*;
-use crate::graph::{Graph, Connection};
+use crate::graph::Graph;
 use crate::graph_solver::GraphSolver;
 use crate::identifier::Identifier;
 use crate::matcher::Matcher;
@@ -569,8 +569,8 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 let solver = GraphSolver::new(self.env.clone(), &self.bag_bundle);
                 let g = self.bag_graph.connections.clone();
                 if let Some(gg) = g.get(&id) {
-                    for _ in solver.solve(gg) {
-                        println!("x");
+                    for solution in solver.solve(gg) {
+                        println!("{solution:?}");
                     }
                     return Ok(ReplOutput::Notice(format!("Solved")));
                 } else {
