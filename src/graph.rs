@@ -120,7 +120,10 @@ impl std::fmt::Display for Connection<'_> {
         writeln!(f,"{{")?;
 
         for c in &self.consumers {
-            write!(f, "  &{}.consume ", c.source_bag)?;
+            write!(f, "  &{}.{} ", c.source_bag, match c.consumption {
+                Consumption::Test => "test",
+                Consumption::Take => "consume",
+            })?;
             for p in &c.patterns {
                 write!(f, "{p};")?;
             }

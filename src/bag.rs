@@ -119,7 +119,7 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
 
             let duplicates = Vec::with_capacity(query.predicate.patterns.len());
 
-            for m in self.cross_query_helper(query.outer, duplicates, matcher, &query.predicate.patterns) {
+            for (m, _) in self.cross_query_helper(query.outer, duplicates, matcher, &query.predicate.patterns) {
                 let mut env = env.clone();
                 m.into_env().merge(&mut env);
                 if let Ok(Value::Boolean(true)) = env.eval_expr(&query.predicate.guard) {
@@ -141,9 +141,9 @@ impl<'i, 's, 'v> ValueBag<'i, 's, 'v> {
         mut skip: Vec<usize>,
         matcher: Matcher<'i, 's, 'v, 'e>,
         patterns: &'e [Pattern<'s>],
-    ) -> Box<dyn Iterator<Item = Matcher<'i, 's, 'v, 'e>> + 'e> {
+    ) -> Box<dyn Iterator<Item = (Matcher<'i, 's, 'v, 'e>, Vec<usize>)> + 'e> {
         let Some(pattern) = patterns.get(0) else {
-            return Box::new(Some(matcher.clone()).into_iter())
+            return Box::new(Some((matcher.clone(), skip)).into_iter())
         };
 
         Box::new(gen_iter!(move {

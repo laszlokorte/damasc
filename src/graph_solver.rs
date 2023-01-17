@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::{bag_bundle::BagBundle, env::Environment, graph::{Connection, Consumer, Producer}, matcher::Matcher, value::Value, identifier::Identifier};
+use crate::{bag_bundle::BagBundle, env::Environment, graph::{Connection, Consumer, Producer, Consumption}, matcher::Matcher, value::Value, identifier::Identifier};
 use gen_iter::gen_iter;
 
 pub(crate) struct GraphSolver<'bb, 'ei,'es, 'ev> {
@@ -59,12 +59,29 @@ impl<'bb, 'ei,'es, 'ev> GraphSolver<'bb,'ei,'es, 'ev> {
             return Box::new(None.into_iter());
         };
         let duplicates = Vec::with_capacity(consumer.patterns.len());
-        let matcher = Matcher::new(&self.env);
+        let matcher = matcher.clone();
         
         Box::new(gen_iter!(move {
-            for m in test_bag.cross_query_helper(false, duplicates, matcher, &consumer.patterns) {
-                for (cs, mm) in self.solve_consumers(&consumers[1..], m, changeset.clone()) {
-                    yield (cs, mm);
+            for (m, dups) in test_bag.cross_query_helper(false, duplicates, matcher, &consumer.patterns) {
+                let mut cs_new = changeset.clone();
+                match consumer.consumption {
+                    Consumption::Test => {
+                        cs_new.touches.entry(consumer.source_bag.clone()).or_insert(Vec::new()).append(&mut dups.clone())
+                    },
+                    Consumption::Take => {
+                        cs_new.deletions.entry(consumer.source_bag.clone()).or_insert(Vec::new()).append(&mut dups.clone())
+                    },
+                }
+                for (cs, mm) in self.solve_consumers(&consumers[1..], m, cs_new) {
+                    match mm.clone().into_env().eval_expr(&consumer.guard) {
+                        Ok(Value::Boolean(true)) => {
+                            yield (cs, mm);
+                        },
+                        x => {
+                            dbg!(x);
+                        },
+                    }
+                    
                 }
             }
         }))
