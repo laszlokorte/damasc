@@ -2,6 +2,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use crate::{identifier::Identifier, expression::Expression, pattern::Pattern, assignment::AssignmentSet, literal::Literal};
 
+#[derive(Clone)]
 pub struct Graph<'s> {
     pub(crate) connections: HashMap<Identifier<'s>, Connection<'s>>
 }

@@ -958,6 +958,7 @@ pub fn statement<'a, 'b>(input: &str) -> IResult<&str, Statement<'a, 'b>> {
         alt((
             value(Statement::ListConnections, all_consuming(ws(tag(".connections")))),
             value(Statement::Validate, all_consuming(ws(tag(".validate")))),
+            map(all_consuming(preceded(ws(tag(".solve")), identifier)), Statement::Solve),
         )),
     )))(input)
 }
