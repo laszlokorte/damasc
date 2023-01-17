@@ -529,12 +529,19 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 Ok(ReplOutput::Notice(format!("{result}")))
             }
             Statement::Pattern(pattern) => Ok(ReplOutput::Notice(format!("{pattern:?}"))),
-            Statement::Connect(name, con) => {
+            Statement::Connect(name, mut con) => {
                 if self.bag_graph.connections.contains_key(&name) {
                     Ok(ReplOutput::Notice(format!("Connection named {name} already exists.")))
                 } else {
-                    self.bag_graph.connections.insert(name, con.clone());
-                    Ok(ReplOutput::Notice(format!("Connection created:\n\n{con}")))
+                    match con.sort_topological(self.env.identifiers()) {
+                        Ok(_) => {
+                            self.bag_graph.connections.insert(name, con.clone());
+                            Ok(ReplOutput::Notice(format!("Connection created:\n\n{con}"))) 
+                        },
+                        Err(e) => {
+                            Ok(ReplOutput::Notice(format!("Topological Error in Connection, {e:?}")))   
+                        },
+                    }
                 }
             },
             Statement::Disconnect(name) => {

@@ -1,7 +1,9 @@
 use std::borrow::Cow;
+use std::collections::VecDeque;
 
 use crate::identifier::Identifier;
 use crate::literal::Literal;
+use gen_iter::gen_iter;
 
 #[derive(Clone, Debug)]
 pub enum Expression<'s> {
@@ -95,6 +97,80 @@ impl std::fmt::Display for Expression<'_> {
             },
             
         }
+    }
+}
+
+impl Expression<'_> {
+    pub(crate) fn get_identifiers(&self) -> impl Iterator<Item = &Identifier> {
+        gen_iter!(move {
+            let mut expression_stack : VecDeque<&Expression> = VecDeque::new();
+            
+            expression_stack.push_front(self);
+
+            while let Some(e) = expression_stack.pop_front() {
+                match e {
+                    Expression::Array(arr) => {
+                        for item in arr {
+                            match item {
+                                ArrayItem::Single(s) => {
+                                    expression_stack.push_front(s);
+                                },
+                                ArrayItem::Spread(s) => {
+                                    expression_stack.push_front(s);
+                                },
+                            }
+                        }
+                    },
+                    Expression::Binary(BinaryExpression {left, right,..}) => {
+                        expression_stack.push_front(left);
+                        expression_stack.push_front(right);
+                    },
+                    Expression::Identifier(id) => yield id,
+                    Expression::Literal(_) => {},
+                    Expression::Logical(LogicalExpression {left, right,..}) => {
+                        expression_stack.push_front(left);
+                        expression_stack.push_front(right);
+                    },
+                    Expression::Member(MemberExpression{ object, property }) => {
+                        expression_stack.push_front(object);
+                        expression_stack.push_front(property);
+                    },
+                    Expression::Object(props) => {
+                        for p in props {
+                            match p {
+                                ObjectProperty::Single(s) => {
+                                    yield s;
+                                },
+                                ObjectProperty::Property(Property{key, value}) => {
+                                    expression_stack.push_front(value);
+
+                                    match key {
+                                        PropertyKey::Identifier(_id) => {},
+                                        PropertyKey::Expression(expr) =>
+                                        expression_stack.push_front(expr),
+                                    };
+                                },
+                                ObjectProperty::Spread(s) => {
+                                    expression_stack.push_front(s);
+                                },
+                            }
+                        }
+                    },
+                    Expression::Unary(UnaryExpression{argument, ..}) => {
+                        expression_stack.push_front(argument);
+                    },
+                    Expression::Call(CallExpression{argument,..}) => {
+                        expression_stack.push_front(argument);
+
+                    },
+                    Expression::Template(StringTemplate{parts, ..}) => {
+                        for p in parts {
+                            expression_stack.push_front(&p.dynamic_end);
+                        }
+                    },
+                }
+            }
+        })
     }
 }
 

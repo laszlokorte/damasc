@@ -1,13 +1,8 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashSet};
 
-use crate::expression::{
-    ArrayItem, BinaryExpression, CallExpression, Expression, LogicalExpression, MemberExpression,
-    ObjectProperty, Property, PropertyKey, StringTemplate, UnaryExpression,
-};
+use crate::expression::Expression;
 use crate::identifier::Identifier;
-use crate::pattern::{ArrayPatternItem, ObjectPropertyPattern, Pattern, PropertyPattern, Rest};
-
-use gen_iter::gen_iter;
+use crate::pattern::Pattern;
 
 #[derive(Clone, Debug)]
 pub struct Assignment<'a, 'b> {
@@ -54,7 +49,6 @@ impl<'a, 'b> AssignmentSet<'a, 'b> {
         external_ids: HashSet<&Identifier>,
     ) -> Result<(), AssignmentError<'c>> {
         let mut known_ids = HashSet::new();
-
         let mut result: Vec<usize> = Vec::with_capacity(self.assignments.len());
 
         'repeat: loop {
@@ -113,153 +107,10 @@ impl<'a, 'b> AssignmentSet<'a, 'b> {
 
 impl<'a, 'b> Assignment<'a, 'b> {
     fn output_identifiers(&self) -> impl Iterator<Item = &Identifier> {
-        gen_iter!(move {
-            let mut stack = VecDeque::new();
-            stack.push_front(&self.pattern);
-            while let Some(p) = stack.pop_front() {
-                match &p {
-                    Pattern::Discard => {},
-                    Pattern::Capture(id, _) => yield id,
-                    Pattern::Identifier(id) => yield id,
-                    Pattern::TypedDiscard(_) => {},
-                    Pattern::TypedIdentifier(id, _) => yield id,
-                    Pattern::Literal(_) => {},
-                    Pattern::Object(props, rest) => {
-                        for p in props {
-                            match p {
-                                ObjectPropertyPattern::Single(id) => yield id,
-                                ObjectPropertyPattern::Match(PropertyPattern{key, value}) => {
-                                    match key {
-                                        PropertyKey::Identifier(id) => yield id,
-                                        PropertyKey::Expression(_expr) => {},
-                                    }
-                                    stack.push_front(value);
-                                },
-                            };
-                        }
-                        if let Rest::Collect(p) = rest {
-                            stack.push_front(p);
-                        }
-                    },
-                    Pattern::Array(items, rest) => {
-                        for ArrayPatternItem::Pattern(p) in items {
-                            stack.push_front(p);
-                        }
-                        if let Rest::Collect(p) = rest {
-                            stack.push_front(p);
-                        }
-                    },
-                }
-            }
-        })
+        self.pattern.get_identifiers()
     }
 
     fn input_identifiers(&self) -> impl Iterator<Item = &Identifier> {
-        gen_iter!(move {
-            let mut expression_stack : VecDeque<&Expression> = VecDeque::new();
-            let mut pattern_stack = VecDeque::new();
-            pattern_stack.push_front(&self.pattern);
-            while let Some(p) = pattern_stack.pop_front() {
-                match &p {
-                    Pattern::Discard => {},
-                    Pattern::Capture(_id, _) => {},
-                    Pattern::Identifier(_id) => {},
-                    Pattern::TypedDiscard(_) => {},
-                    Pattern::TypedIdentifier(_id, _) => {},
-                    Pattern::Literal(_) => {},
-                    Pattern::Object(props, rest) => {
-                        for p in props {
-                            match p {
-                                ObjectPropertyPattern::Single(_id) => {},
-                                ObjectPropertyPattern::Match(PropertyPattern{key, value}) => {
-                                    match key {
-                                        PropertyKey::Identifier(_id) => {},
-                                        PropertyKey::Expression(expr) => expression_stack.push_front(expr),
-                                    }
-                                    pattern_stack.push_front(value);
-                                },
-                            };
-                        }
-                        if let Rest::Collect(p) = rest {
-                            pattern_stack.push_front(p);
-                        }
-                    },
-                    Pattern::Array(items, rest) => {
-                        for ArrayPatternItem::Pattern(p) in items {
-                            pattern_stack.push_front(p);
-                        }
-                        if let Rest::Collect(p) = rest {
-                            pattern_stack.push_front(p);
-                        }
-                    },
-                }
-            };
-
-            expression_stack.push_front(&self.expression);
-
-            while let Some(e) = expression_stack.pop_front() {
-                match e {
-                    Expression::Array(arr) => {
-                        for item in arr {
-                            match item {
-                                ArrayItem::Single(s) => {
-                                    expression_stack.push_front(s);
-                                },
-                                ArrayItem::Spread(s) => {
-                                    expression_stack.push_front(s);
-                                },
-                            }
-                        }
-                    },
-                    Expression::Binary(BinaryExpression {left, right,..}) => {
-                        expression_stack.push_front(left);
-                        expression_stack.push_front(right);
-                    },
-                    Expression::Identifier(id) => yield id,
-                    Expression::Literal(_) => {},
-                    Expression::Logical(LogicalExpression {left, right,..}) => {
-                        expression_stack.push_front(left);
-                        expression_stack.push_front(right);
-                    },
-                    Expression::Member(MemberExpression{ object, property }) => {
-                        expression_stack.push_front(object);
-                        expression_stack.push_front(property);
-                    },
-                    Expression::Object(props) => {
-                        for p in props {
-                            match p {
-                                ObjectProperty::Single(s) => {
-                                    yield s;
-                                },
-                                ObjectProperty::Property(Property{key, value}) => {
-                                    expression_stack.push_front(value);
-
-                                    match key {
-                                        PropertyKey::Identifier(_id) => {},
-                                        PropertyKey::Expression(expr) =>
-                                        expression_stack.push_front(expr),
-                                    };
-                                },
-                                ObjectProperty::Spread(s) => {
-                                    expression_stack.push_front(s);
-                                },
-                            }
-                        }
-                    },
-                    Expression::Unary(UnaryExpression{argument, ..}) => {
-                        expression_stack.push_front(argument);
-                    },
-                    Expression::Call(CallExpression{argument,..}) => {
-                        expression_stack.push_front(argument);
-
-                    },
-                    Expression::Template(StringTemplate{parts, ..}) => {
-                        for p in parts {
-                            expression_stack.push_front(&p.dynamic_end);
-                        }
-                    },
-                }
-            }
-        })
+        self.pattern.get_expressions().chain(Some(&self.expression).into_iter()).flat_map(|e| e.get_identifiers())
     }
 }
