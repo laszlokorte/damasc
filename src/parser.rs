@@ -13,7 +13,7 @@ use nom::IResult;
 
 use crate::assignment::{Assignment, AssignmentSet};
 use crate::expression::*;
-use crate::graph::{Connection, Tester, Consumer, Producer, Signature};
+use crate::graph::{Connection, Consumer, Producer, Signature, Consumption};
 use crate::identifier::Identifier;
 use crate::literal::Literal;
 use crate::pattern::*;
@@ -997,11 +997,12 @@ fn predicate<'x>(input:&str) -> IResult<&str, (Vec<Pattern<'x>>, Option<Expressi
     ))(input)
 }
 
-fn connection_tester<'x>(input:&str) -> IResult<&str, Tester<'x>> {
+fn connection_tester<'x>(input:&str) -> IResult<&str, Consumer<'x>> {
     map(separated_pair(delimited(tag("&"), identifier, tag(".test")), space1,  
     predicate
-    ), |(test_bag, (patterns, guard))| Tester {
-        test_bag,
+    ), |(source_bag, (patterns, guard))| Consumer {
+        consumption: Consumption::Test,
+        source_bag,
         patterns,
         guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
     })(input)
@@ -1011,6 +1012,7 @@ fn connection_consumer<'x>(input:&str) -> IResult<&str, Consumer<'x>> {
     map(separated_pair(delimited(tag("&"), identifier,  tag(".consume")), space1,  
     predicate
     ), |(source_bag, (patterns, guard))| Consumer {
+        consumption: Consumption::Take,
         source_bag,
         patterns,
         guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
@@ -1043,7 +1045,6 @@ fn connection_signature<'x>(input:&str) -> IResult<&str, Signature<'x>>{
 }
 
 enum ConnectionComponent<'a, 'b> {
-    Tester(Tester<'a>),
     Consumer(Consumer<'a>),
     Producer(Producer<'a>),
     Pattern(AssignmentSet<'a, 'b>),
@@ -1053,7 +1054,7 @@ enum ConnectionComponent<'a, 'b> {
 fn connection<'x>(input: &str) -> IResult<&str, Connection<'x>> {
     let (input, (signature, parts)) = pair(connection_signature, delimited(ws(tag("{")), 
         terminated(separated_list0(ws(tag(";")), alt((
-        map(ws(connection_tester), ConnectionComponent::Tester),
+        map(ws(connection_tester), ConnectionComponent::Consumer),
         map(ws(connection_consumer), ConnectionComponent::Consumer),
         map(ws(connection_producer), ConnectionComponent::Producer),
         map(ws(consumer_pattern), ConnectionComponent::Pattern),
@@ -1062,14 +1063,6 @@ fn connection<'x>(input: &str) -> IResult<&str, Connection<'x>> {
 
     let consumers = parts.iter().filter_map(|p| {
         if let ConnectionComponent::Consumer(c) = p {
-            Some(c)
-        } else {
-            None
-        }
-    }).cloned().collect();
-
-    let testers = parts.iter().filter_map(|p| {
-        if let ConnectionComponent::Tester(c) = p {
             Some(c)
         } else {
             None
@@ -1104,7 +1097,6 @@ fn connection<'x>(input: &str) -> IResult<&str, Connection<'x>> {
         signature,
         consumers,
         producers,
-        testers,
         patterns: patterns.unwrap_or(AssignmentSet{assignments:vec![]}),
         guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
     }))

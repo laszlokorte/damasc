@@ -35,7 +35,6 @@ pub struct Connection<'s> {
     pub(crate) signature: Signature<'s>,
     pub(crate) consumers: Vec<Consumer<'s>>,
     pub(crate) producers: Vec<Producer<'s>>,
-    pub(crate) testers: Vec<Tester<'s>>,
     pub(crate) patterns: AssignmentSet<'s,'s>,
     pub(crate) guard: Expression<'s>,
 }
@@ -43,9 +42,7 @@ pub struct Connection<'s> {
 impl<'s> Connection<'s> {
 
     pub(crate) fn bags(&'s self) -> impl Iterator<Item = &Identifier<'s>> {
-        self.testers.iter().map(|t| &t.test_bag).chain(
-            self.consumers.iter().map(|c| &c.source_bag)
-        ).chain(
+        self.consumers.iter().map(|c| &c.source_bag).chain(
             self.producers.iter().map(|p| &p.target_bag)
         )
     }
@@ -56,15 +53,6 @@ impl std::fmt::Display for Connection<'_> {
         write!(f, ".connection ")?;
         write!(f, "{}({})", self.signature.name, self.signature.parameter)?;
         writeln!(f,"{{")?;
-
-        for c in &self.testers {
-            write!(f, "  &{}.test ", c.test_bag)?;
-            for p in &c.patterns {
-                write!(f, "{p};")?;
-            }
-            write!(f, " where {}", c.guard)?;
-            writeln!(f,";")?;
-        }
 
         for c in &self.consumers {
             write!(f, "  &{}.consume ", c.source_bag)?;
@@ -105,7 +93,14 @@ pub(crate) struct Signature<'s> {
 }
 
 #[derive(Clone,Debug)]
+pub(crate) enum Consumption {
+    Test,
+    Take,
+}
+
+#[derive(Clone,Debug)]
 pub(crate) struct Consumer<'s> {
+    pub(crate) consumption: Consumption,
     pub(crate) source_bag: Identifier<'s>,
     pub(crate) patterns: Vec<Pattern<'s>>,
     pub(crate) guard: Expression<'s>,
@@ -115,13 +110,6 @@ pub(crate) struct Consumer<'s> {
 pub(crate) struct Producer<'s> {
     pub(crate) target_bag: Identifier<'s>,
     pub(crate) projections: Vec<Expression<'s>>,
-}
-
-#[derive(Clone,Debug)]
-pub(crate) struct Tester<'s> {
-    pub(crate) test_bag: Identifier<'s>,
-    pub(crate) patterns: Vec<Pattern<'s>>,
-    pub(crate) guard: Expression<'s>,
 }
 
 pub struct GraphQuery<'s> {

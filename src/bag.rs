@@ -339,20 +339,3 @@ impl<'x, 'i, 's, 'v> ValueBagTransfer<'x, 'i, 's, 'v> {
         short_circuit.unwrap_or(TransferResult::Success(counter))
     }
 }
-
-
-
-struct BagQueryIterator<'dup, 'i, 's, 'v, 'e> {
-    duplicates: &'dup mut Vec<usize>,
-    outer: bool,
-    matcher: Matcher<'i, 's, 'v, 'e>,
-    patterns: &'e [Pattern<'s>],
-}
-
-impl<'dup, 'i, 's, 'v, 'e> Iterator for BagQueryIterator<'dup, 'i, 's, 'v, 'e> {
-    type Item  = Matcher<'i, 's, 'v, 'e>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        todo!()
-    }
-}
