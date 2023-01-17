@@ -10,3 +10,9 @@ impl std::fmt::Display for Identifier<'_> {
         write!(f, "{}", self.name)
     }
 }
+
+impl Identifier<'_> {
+    pub(crate) fn deep_clone<'x,'y>(&'x self) -> Identifier<'y> {
+        Identifier { name: Cow::Owned(self.name.as_ref().into()) }
+    }
+}

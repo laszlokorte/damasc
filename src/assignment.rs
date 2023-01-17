@@ -44,10 +44,10 @@ impl<'s> std::fmt::Display for AssignmentError<'s> {
 }
 
 impl<'a, 'b> AssignmentSet<'a, 'b> {
-    pub fn sort_topological<'c>(
-        &'c mut self,
-        external_ids: HashSet<&Identifier>,
-    ) -> Result<(), AssignmentError<'c>> {
+    pub fn sort_topological<'x>(
+        self,
+        external_ids: HashSet<&'x Identifier>,
+    ) -> Result<AssignmentSet<'a,'b>, AssignmentError<'x>> {
         let mut known_ids = HashSet::new();
         let mut result: Vec<usize> = Vec::with_capacity(self.assignments.len());
 
@@ -88,18 +88,15 @@ impl<'a, 'b> AssignmentSet<'a, 'b> {
                     .cloned()
                     .collect();
 
-                let cycle: HashSet<_> = input_ids.intersection(&output_ids).cloned().collect();
-                if !cycle.is_empty() {
-                    return Err(AssignmentError::TopologicalConflict(cycle));
-                } else {
-                    return Ok(());
-                }
+                let cycle: HashSet<_> = input_ids.intersection(&output_ids).map(|i| i.deep_clone()).collect();
+                return Err(AssignmentError::TopologicalConflict(cycle));
             } else {
-                self.assignments = result
+                return Ok(AssignmentSet {
+                    assignments: result
                     .into_iter()
                     .map(|i| self.assignments[i].clone())
-                    .collect();
-                return Ok(());
+                    .collect()
+                });
             }
         }
     }

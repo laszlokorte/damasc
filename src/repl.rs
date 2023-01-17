@@ -432,91 +432,98 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 .collect::<Result<Vec<_>, _>>()
                 .map(ReplOutput::Values)
                 .map_err(|_| ReplError::EvalError),
-            Statement::MatchSet(mut assignments) => {
-                if let Err(_e) = assignments.sort_topological(self.env.identifiers()) {
-                    return Err(ReplError::AssignmentError);
-                }
-
-                let result = assignments.assignments.iter().fold(
-                    Ok(Ok(self.env.clone())),
-                    |acc,
-                     Assignment {
-                         pattern,
-                         expression,
-                     }| {
-                        let Ok(Ok(mut tmp_env)) = acc else {
-                        return acc;
-                    };
-                        let mut matcher = Matcher::new(&tmp_env);
-
-                        let result = match tmp_env.eval_expr(expression) {
-                            Ok(r) => r,
-                            Err(_err) => {
-                                return Err(ReplError::EvalError);
-                            }
-                        };
-
-                        match matcher.match_pattern(pattern, &result) {
-                            Ok(_) => {
-                                matcher.into_env().merge(&mut tmp_env);
-                                Ok(Ok(tmp_env))
-                            }
-                            Err(e) => Ok(Err(e)),
+            Statement::MatchSet(assignments) => {
+                match assignments.sort_topological(self.env.identifiers()) {
+                    Ok(assignments) => {
+                        let result = assignments.assignments.iter().fold(
+                            Ok(Ok(self.env.clone())),
+                            |acc,
+                             Assignment {
+                                 pattern,
+                                 expression,
+                             }| {
+                                let Ok(Ok(mut tmp_env)) = acc else {
+                                return acc;
+                            };
+                                let mut matcher = Matcher::new(&tmp_env);
+        
+                                let result = match tmp_env.eval_expr(expression) {
+                                    Ok(r) => r,
+                                    Err(_err) => {
+                                        return Err(ReplError::EvalError);
+                                    }
+                                };
+        
+                                match matcher.match_pattern(pattern, &result) {
+                                    Ok(_) => {
+                                        matcher.into_env().merge(&mut tmp_env);
+                                        Ok(Ok(tmp_env))
+                                    }
+                                    Err(e) => Ok(Err(e)),
+                                }
+                            },
+                        );
+        
+                        match result {
+                            Ok(Ok(new_env)) => Ok(ReplOutput::Bindings(new_env.bindings.clone())),
+                            Ok(Err(_)) => Ok(ReplOutput::PatternMissmatch),
+                            Err(e) => Err(e),
                         }
                     },
-                );
-
-                match result {
-                    Ok(Ok(new_env)) => Ok(ReplOutput::Bindings(new_env.bindings.clone())),
-                    Ok(Err(_)) => Ok(ReplOutput::PatternMissmatch),
-                    Err(e) => Err(e),
+                    Err(_) => {
+                        return Err(ReplError::AssignmentError);
+                    },
                 }
             }
-            Statement::AssignSet(mut assignments) => {
-                if let Err(_e) = assignments.sort_topological(self.env.identifiers()) {
-                    return Err(ReplError::AssignmentError);
-                }
+            Statement::AssignSet(assignments) => {
+                match assignments.sort_topological(self.env.identifiers()) {
+                    Ok(assignments) => {
+                        let mut bindings = Environment::new();
+                        let result = assignments.assignments.iter().fold(
+                            Ok(Ok(self.env.clone())),
+                            |acc,
+                            Assignment {
+                                pattern,
+                                expression,
+                            }| {
+                                let Ok(Ok(mut tmp_env)) = acc else {
+                                return acc;
+                            };
 
-                let mut bindings = Environment::new();
-                let result = assignments.assignments.iter().fold(
-                    Ok(Ok(self.env.clone())),
-                    |acc,
-                     Assignment {
-                         pattern,
-                         expression,
-                     }| {
-                        let Ok(Ok(mut tmp_env)) = acc else {
-                        return acc;
-                    };
+                                let mut matcher = Matcher::new(&tmp_env);
 
-                        let mut matcher = Matcher::new(&tmp_env);
+                                let result = match tmp_env.eval_expr(expression) {
+                                    Ok(r) => r,
+                                    Err(_err) => {
+                                        return Err(ReplError::EvalError);
+                                    }
+                                };
 
-                        let result = match tmp_env.eval_expr(expression) {
-                            Ok(r) => r,
-                            Err(_err) => {
-                                return Err(ReplError::EvalError);
+                                match matcher.match_pattern(pattern, &result) {
+                                    Ok(_) => {
+                                        matcher.local_env.clone().merge(&mut bindings);
+                                        matcher.local_env.clone().merge(&mut tmp_env);
+                                        Ok(Ok(tmp_env))
+                                    }
+                                    Err(e) => Ok(Err(e)),
+                                }
+                            },
+                        );
+
+                        match result {
+                            Ok(Ok(new_env)) => {
+                                self.env = new_env;
+                                Ok(ReplOutput::Bindings(bindings.bindings.clone()))
                             }
-                        };
-
-                        match matcher.match_pattern(pattern, &result) {
-                            Ok(_) => {
-                                matcher.local_env.clone().merge(&mut bindings);
-                                matcher.local_env.clone().merge(&mut tmp_env);
-                                Ok(Ok(tmp_env))
-                            }
-                            Err(e) => Ok(Err(e)),
+                            Ok(Err(_)) => Ok(ReplOutput::PatternMissmatch),
+                            Err(e) => Err(e),
                         }
                     },
-                );
-
-                match result {
-                    Ok(Ok(new_env)) => {
-                        self.env = new_env;
-                        Ok(ReplOutput::Bindings(bindings.bindings.clone()))
-                    }
-                    Ok(Err(_)) => Ok(ReplOutput::PatternMissmatch),
-                    Err(e) => Err(e),
+                    Err(_e) => {
+                        return Err(ReplError::AssignmentError);
+                    },
                 }
+                
             }
             Statement::Literal(ex) => {
                 let result = match self.env.eval_expr(&ex) {

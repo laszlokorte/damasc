@@ -61,13 +61,13 @@ fn test_patterns() {
     for case in tests {
         let mut matcher = Matcher::new(&env);
 
-        let Ok((_, Statement::MatchSet(mut assignment_set))) = try_match_multi(case) else {
+        let Ok((_, Statement::MatchSet(assignment_set))) = try_match_multi(case) else {
             unreachable!("Test Pattern and Expression can be parsed: {case}");
         };
 
-        if assignment_set.sort_topological(env.identifiers()).is_err() {
+        let Ok(assignment_set) = assignment_set.sort_topological(env.identifiers()) else {
             unreachable!("Topological Error in: {case}");
-        }
+        };
 
         for Assignment {
             pattern,
@@ -97,13 +97,13 @@ fn test_negative_patterns() {
     for case in tests {
         let mut matcher = Matcher::new(&env);
 
-        let Ok((_, Statement::MatchSet(mut assignment_set))) = try_match_multi(case) else {
+        let Ok((_, Statement::MatchSet(assignment_set))) = try_match_multi(case) else {
             unreachable!("Test Pattern and Expression can be parsed: {case}");
         };
 
-        if assignment_set.sort_topological(env.identifiers()).is_err() {
+        let Ok(assignment_set) = assignment_set.sort_topological(env.identifiers()) else {
             unreachable!("Topological Error in: {case}");
-        }
+        };
 
         for Assignment {
             pattern,
@@ -134,16 +134,13 @@ fn test_topological_assignments() {
         let mut tmp_env = env.clone();
         let mut matcher = Matcher::new(&env);
 
-        let Ok((_, Statement::MatchSet(mut assignment_set))) = try_match_multi(case) else {
+        let Ok((_, Statement::MatchSet(assignment_set))) = try_match_multi(case) else {
             unreachable!("Test Pattern and Expression can be parsed: {case}");
         };
 
-        if assignment_set
-            .sort_topological(tmp_env.identifiers())
-            .is_err()
-        {
+        let Ok(assignment_set) = assignment_set.sort_topological(tmp_env.identifiers()) else {
             unreachable!("Topological Error in: {case}");
-        }
+        };
 
         for Assignment {
             pattern,
@@ -172,7 +169,7 @@ fn test_topological_fail() {
     };
 
     for case in tests {
-        let Ok((_, Statement::MatchSet(mut assignment_set))) = try_match_multi(case) else {
+        let Ok((_, Statement::MatchSet(assignment_set))) = try_match_multi(case) else {
             unreachable!("Test Pattern and Expression can be parsed: {case}");
         };
 

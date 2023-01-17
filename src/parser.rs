@@ -997,26 +997,24 @@ fn predicate<'x>(input:&str) -> IResult<&str, (Vec<Pattern<'x>>, Option<Expressi
     ))(input)
 }
 
-fn connection_tester<'x>(input:&str) -> IResult<&str, Consumer<'x>> {
+fn connection_tester<'x>(input:&str) -> IResult<&str, (Consumer<'x>, Expression<'x>)> {
     map(separated_pair(delimited(tag("&"), identifier, tag(".test")), space1,  
     predicate
-    ), |(source_bag, (patterns, guard))| Consumer {
+    ), |(source_bag, (patterns, guard))| (Consumer {
         consumption: Consumption::Test,
         source_bag,
         patterns,
-        guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
-    })(input)
+    }, guard.unwrap_or(Expression::Literal(Literal::Boolean(true)))))(input)
 }
 
-fn connection_consumer<'x>(input:&str) -> IResult<&str, Consumer<'x>> {
+fn connection_consumer<'x>(input:&str) -> IResult<&str, (Consumer<'x>, Expression<'x>)> {
     map(separated_pair(delimited(tag("&"), identifier,  tag(".consume")), space1,  
     predicate
-    ), |(source_bag, (patterns, guard))| Consumer {
+    ), |(source_bag, (patterns, guard))| (Consumer {
         consumption: Consumption::Take,
         source_bag,
         patterns,
-        guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
-    })(input)
+    }, guard.unwrap_or(Expression::Literal(Literal::Boolean(true)))))(input)
 }
 
 fn connection_producer<'x>(input:&str) -> IResult<&str, Producer<'x>> {
@@ -1045,7 +1043,7 @@ fn connection_signature<'x>(input:&str) -> IResult<&str, Signature<'x>>{
 }
 
 enum ConnectionComponent<'a, 'b> {
-    Consumer(Consumer<'a>),
+    Consumer((Consumer<'a>, Expression<'a>)),
     Producer(Producer<'a>),
     Pattern(AssignmentSet<'a, 'b>),
     Guard(Expression<'a>),
@@ -1062,7 +1060,7 @@ fn connection<'x>(input: &str) -> IResult<&str, Connection<'x>> {
     ))), opt(ws(tag(";")))), ws(tag("}"))))(input)?;
 
     let consumers = parts.iter().filter_map(|p| {
-        if let ConnectionComponent::Consumer(c) = p {
+        if let ConnectionComponent::Consumer((c,_)) = p {
             Some(c)
         } else {
             None
@@ -1093,11 +1091,23 @@ fn connection<'x>(input: &str) -> IResult<&str, Connection<'x>> {
         }
     }).cloned();
 
+    let guard: Expression = parts.iter().fold(guard.unwrap_or(Expression::Literal(Literal::Boolean(true))), |acc, p| {
+        if let ConnectionComponent::Consumer((_,g)) = p {
+            Expression::Logical(LogicalExpression {
+                operator: LogicalOperator::And,
+                left: Box::new(acc),
+                right: Box::new(g.clone()),
+            })
+        } else {
+            acc
+        }
+    });
+
     Ok((input, Connection {
         signature,
         consumers,
         producers,
         patterns: patterns.unwrap_or(AssignmentSet{assignments:vec![]}),
-        guard: guard.unwrap_or(Expression::Literal(Literal::Boolean(true))),
+        guard,
     }))
 }

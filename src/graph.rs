@@ -127,8 +127,6 @@ impl std::fmt::Display for Connection<'_> {
             for p in &c.patterns {
                 write!(f, "{p};")?;
             }
-            write!(f, " where {}", c.guard)?;
-            writeln!(f,";")?;
         }
 
         for c in &self.producers {
@@ -171,7 +169,6 @@ pub(crate) struct Consumer<'s> {
     pub(crate) consumption: Consumption,
     pub(crate) source_bag: Identifier<'s>,
     pub(crate) patterns: Vec<Pattern<'s>>,
-    pub(crate) guard: Expression<'s>,
 }
 
 impl Consumer<'_> {
@@ -181,7 +178,7 @@ impl Consumer<'_> {
 
     fn input_identifiers(&self) -> impl Iterator<Item = &Identifier> {
         let own_output : HashSet<_> = self.output_identifiers().collect();
-        self.patterns.iter().flat_map(|p| p.get_expressions()).chain(Some(&self.guard).into_iter()).flat_map(|e| e.get_identifiers()).filter(move |i| !own_output.contains(i))
+        self.patterns.iter().flat_map(|p| p.get_expressions()).flat_map(|e| e.get_identifiers()).filter(move |i| !own_output.contains(i))
     }
 }
 

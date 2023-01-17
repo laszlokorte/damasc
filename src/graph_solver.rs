@@ -39,8 +39,15 @@ impl<'bb, 'ei,'es, 'ev> GraphSolver<'bb,'ei,'es, 'ev> {
         
         Box::new(gen_iter!(move {
             for (cc, mc) in self.solve_consumers(&connection.consumers, matcher, changeset) {
-                for cp in self.solve_producers(&connection.producers, mc, cc) {
-                    yield cp
+                match mc.clone().into_env().eval_expr(&connection.guard) {
+                    Ok(Value::Boolean(true)) => {
+                        for cp in self.solve_producers(&connection.producers, mc, cc) {
+                            yield cp
+                        }
+                    },
+                    x => {
+                        dbg!(x);
+                    },
                 }
             }
         }))
@@ -73,15 +80,7 @@ impl<'bb, 'ei,'es, 'ev> GraphSolver<'bb,'ei,'es, 'ev> {
                     },
                 }
                 for (cs, mm) in self.solve_consumers(&consumers[1..], m, cs_new) {
-                    match mm.clone().into_env().eval_expr(&consumer.guard) {
-                        Ok(Value::Boolean(true)) => {
-                            yield (cs, mm);
-                        },
-                        x => {
-                            dbg!(x);
-                        },
-                    }
-                    
+                    yield (cs, mm);
                 }
             }
         }))
