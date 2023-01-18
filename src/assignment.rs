@@ -3,6 +3,7 @@ use std::collections::{HashSet};
 use crate::expression::Expression;
 use crate::identifier::Identifier;
 use crate::pattern::Pattern;
+use crate::topology::{TopologyError, sort_topological, Node};
 
 #[derive(Clone, Debug)]
 pub struct Assignment<'a, 'b> {
@@ -21,93 +22,27 @@ pub struct AssignmentSet<'a, 'b> {
     pub assignments: Vec<Assignment<'a, 'b>>,
 }
 
-#[derive(Debug)]
-pub enum AssignmentError<'s> {
-    TopologicalConflict(HashSet<Identifier<'s>>),
-}
-
-impl<'s> std::fmt::Display for AssignmentError<'s> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AssignmentError::TopologicalConflict(conflicts) => {
-                let _ = write!(f, "TopologicalConflict: ");
-                for (n, c) in conflicts.iter().enumerate() {
-                    if n > 0 {
-                        let _ = write!(f, ", ");
-                    }
-                    let _ = write!(f, "{c}");
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
 impl<'a, 'b> AssignmentSet<'a, 'b> {
     pub fn sort_topological<'x>(
         self,
         external_ids: HashSet<&'x Identifier>,
-    ) -> Result<AssignmentSet<'a,'b>, AssignmentError<'x>> {
-        let mut known_ids = HashSet::new();
-        let mut result: Vec<usize> = Vec::with_capacity(self.assignments.len());
-
-        'repeat: loop {
-            for (a, assignment) in self.assignments.iter().enumerate() {
-                if result.contains(&a) {
-                    continue;
-                }
-
-                if assignment
-                    .input_identifiers()
-                    .filter(|id| !external_ids.contains(id))
-                    .filter(|id| !known_ids.contains(id))
-                    .count()
-                    == 0
-                {
-                    result.push(a);
-
-                    for out_id in assignment.output_identifiers() {
-                        known_ids.insert(out_id);
-                    }
-
-                    continue 'repeat;
-                }
-            }
-
-            if result.len() != result.capacity() {
-                let input_ids: HashSet<Identifier> = self
-                    .assignments
-                    .iter()
-                    .flat_map(|a| a.input_identifiers())
-                    .cloned()
-                    .collect();
-                let output_ids: HashSet<Identifier> = self
-                    .assignments
-                    .iter()
-                    .flat_map(|a| a.output_identifiers())
-                    .cloned()
-                    .collect();
-
-                let cycle: HashSet<_> = input_ids.intersection(&output_ids).map(|i| i.deep_clone()).collect();
-                return Err(AssignmentError::TopologicalConflict(cycle));
-            } else {
-                return Ok(AssignmentSet {
-                    assignments: result
-                    .into_iter()
-                    .map(|i| self.assignments[i].clone())
-                    .collect()
-                });
-            }
-        }
+    ) -> Result<AssignmentSet<'a,'b>, TopologyError<'x>> {
+        let sorted = sort_topological(self.assignments, external_ids)?;
+        Ok(AssignmentSet {
+            assignments: sorted,
+        })
     }
 }
 
-impl<'a, 'b> Assignment<'a, 'b> {
-    fn output_identifiers(&self) -> impl Iterator<Item = &Identifier> {
+impl<'a,'b> Node for Assignment<'a, 'b> {
+    type OutputIter<'x> = impl Iterator<Item = &'x Identifier<'x>> where Self: 'x;
+    type InputIter<'x> = impl Iterator<Item = &'x Identifier<'x>> where Self: 'x;
+
+    fn output_identifiers<'x>(&'x self) -> Self::OutputIter<'x> {
         self.pattern.get_identifiers()
     }
 
-    fn input_identifiers(&self) -> impl Iterator<Item = &Identifier> {
+    fn input_identifiers<'x>(&'x self) -> Self::InputIter<'x> {
         self.pattern.get_expressions().chain(Some(&self.expression).into_iter()).flat_map(|e| e.get_identifiers())
     }
 }

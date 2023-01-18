@@ -1,5 +1,6 @@
 #![feature(generators)]
 #![feature(map_many_mut)]
+#![feature(type_alias_impl_trait)]
 
 pub mod assignment;
 pub mod bag;
@@ -18,6 +19,7 @@ pub mod value;
 pub mod wasm;
 pub mod graph;
 pub mod graph_solver;
+pub mod topology;
 
 use expression::*;
 use identifier::Identifier;

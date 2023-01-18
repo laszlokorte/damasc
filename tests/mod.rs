@@ -2,11 +2,11 @@
 #![feature(assert_matches)]
 
 use damasc::{
-    assignment::{Assignment, AssignmentError},
+    assignment::{Assignment},
     env::Environment,
     matcher::Matcher,
     parser::{expression_multi, try_match_multi},
-    statement::Statement,
+    statement::Statement, topology::TopologyError,
 };
 use std::{assert_matches::assert_matches, collections::BTreeMap};
 
@@ -175,7 +175,7 @@ fn test_topological_fail() {
 
         assert_matches!(
             assignment_set.sort_topological(env.identifiers()),
-            Err(AssignmentError::TopologicalConflict(_))
+            Err(TopologyError::Cycle(_))
         )
     }
 }

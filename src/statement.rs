@@ -38,5 +38,5 @@ pub enum Statement<'a, 'b> {
     TellBag,
     ListBags,
     Validate,
-    Solve(Identifier<'b>),
+    Solve(Identifier<'b>, Expression<'b>),
 }

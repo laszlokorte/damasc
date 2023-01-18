@@ -536,12 +536,12 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                 Ok(ReplOutput::Notice(format!("{result}")))
             }
             Statement::Pattern(pattern) => Ok(ReplOutput::Notice(format!("{pattern:?}"))),
-            Statement::Connect(name, mut con) => {
+            Statement::Connect(name, con) => {
                 if self.bag_graph.connections.contains_key(&name) {
                     Ok(ReplOutput::Notice(format!("Connection named {name} already exists.")))
                 } else {
                     match con.sort_topological(self.env.identifiers()) {
-                        Ok(_) => {
+                        Ok(con) => {
                             self.bag_graph.connections.insert(name, con.clone());
                             Ok(ReplOutput::Notice(format!("Connection created:\n\n{con}"))) 
                         },
@@ -572,14 +572,19 @@ impl<'b, 'i, 's, 'v> Repl<'b, 'i, 's, 'v> {
                     Ok(ReplOutput::Notice(format!("Invalid, missing bags: {:?}", missing)))
                 }
             },
-            Statement::Solve(id) => {
+            Statement::Solve(id, param) => {
                 let solver = GraphSolver::new(self.env.clone(), &self.bag_bundle);
                 let g = self.bag_graph.connections.clone();
                 if let Some(gg) = g.get(&id) {
-                    for solution in solver.solve(gg) {
-                        println!("{solution:?}");
+                    if let Ok(v) = self.env.eval_expr(&param) {
+                        for solution in solver.solve(gg, Some(v)) {
+                            println!("{solution:?}");
+                        }
+                        return Ok(ReplOutput::Notice(format!("Solved")));
+                        
+                    } else {
+                        return Err(ReplError::EvalError);
                     }
-                    return Ok(ReplOutput::Notice(format!("Solved")));
                 } else {
                     return Ok(ReplOutput::Notice(format!("connection not defined")));
                 }

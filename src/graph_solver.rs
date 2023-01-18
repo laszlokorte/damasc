@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::{bag_bundle::BagBundle, env::Environment, graph::{Connection, Consumer, Producer, Consumption}, matcher::Matcher, value::Value, identifier::Identifier};
+use crate::{bag_bundle::BagBundle, env::Environment, graph::{Connection, Consumer, Producer, Consumption}, matcher::Matcher, value::Value, identifier::Identifier, query::check_value};
 use gen_iter::gen_iter;
 
 pub(crate) struct GraphSolver<'bb, 'ei,'es, 'ev> {
@@ -32,10 +32,16 @@ impl<'bb, 'ei,'es, 'ev> GraphSolver<'bb,'ei,'es, 'ev> {
         }
     }
 
-    pub fn solve<'slf, 'con:'slf>(&'slf self, connection: &'con Connection<'es>)
+    pub fn solve<'slf, 'con:'slf>(&'slf self, connection: &'con Connection<'es>, argument: Option<Value<'es,'ev>>)
     -> Box<dyn Iterator<Item = ChangeSet<'es, 'ev>> + 'slf> {
-        let matcher = Matcher::new(&self.env);
+        let mut matcher = Matcher::new(&self.env);
         let changeset = ChangeSet::new();
+
+        if let Some(v) = argument {
+            let Ok(()) = matcher.match_pattern(&connection.signature.parameter, &v) else {
+                return Box::new(None.into_iter());
+            };
+        }
         
         Box::new(gen_iter!(move {
             for (cc, mc) in self.solve_consumers(&connection.consumers, matcher, changeset) {
@@ -45,9 +51,7 @@ impl<'bb, 'ei,'es, 'ev> GraphSolver<'bb,'ei,'es, 'ev> {
                             yield cp
                         }
                     },
-                    x => {
-                        dbg!(x);
-                    },
+                    _ => {}
                 }
             }
         }))
@@ -92,9 +96,19 @@ impl<'bb, 'ei,'es, 'ev> GraphSolver<'bb,'ei,'es, 'ev> {
     changeset: ChangeSet<'es, 'ev>) 
     -> Box<dyn Iterator<Item = ChangeSet<'es, 'ev>> + 'slf>{
         let Some(producer) = producers.get(0) else {
-            return Box::new(Some(changeset).into_iter())
+            let can_insert = changeset.insertions.iter().all(|(a,b)| {
+                let Some(bag) = self.bag_bundle.bags.get(a) else {
+                    return false;
+                };
+                return b.iter().all(|v| check_value(&self.env, &bag.guard, v, bag.len() + b.len()))
+            });
+            if can_insert {
+                return Box::new(Some(changeset).into_iter())
+            } else {
+                return Box::new(None.into_iter());
+            }
         };
-        let Some(target_bag) = self.bag_bundle.bags.get(&producer.target_bag) else {
+        if self.bag_bundle.bags.get(&producer.target_bag).is_none() {
             return Box::new(None.into_iter());
         };
         

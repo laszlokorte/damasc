@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use crate::{identifier::Identifier, expression::Expression, pattern::Pattern, assignment::AssignmentSet, literal::Literal};
+use crate::{identifier::Identifier, expression::Expression, pattern::Pattern, assignment::AssignmentSet, literal::Literal, topology::{TopologyError, sort_topological, Node}};
 
 #[derive(Clone)]
 pub struct Graph<'s> {
@@ -39,10 +39,6 @@ pub struct Connection<'s> {
     pub(crate) guard: Expression<'s>,
 }
 
-#[derive(Debug)]
-pub enum ConnectionError<'s> {
-    TopologicalConflict(HashSet<Identifier<'s>>),
-}
 
 impl<'s> Connection<'s> {
 
@@ -51,66 +47,17 @@ impl<'s> Connection<'s> {
             self.producers.iter().map(|p| &p.target_bag)
         )
     }
-
-    pub fn sort_topological<'c>(
-        &'c mut self,
-        external_ids: HashSet<&Identifier>,
-    ) -> Result<(), ConnectionError<'c>> {
-        let mut known_ids = HashSet::new();
-        let mut result: Vec<usize> = Vec::with_capacity(self.consumers.len());
-
-        'repeat: loop {
-            for (a, assignment) in self.consumers.iter().enumerate() {
-                if result.contains(&a) {
-                    continue;
-                }
-
-                if assignment
-                    .input_identifiers()
-                    .filter(|id| !external_ids.contains(id))
-                    .filter(|id| !known_ids.contains(id))
-                    .count()
-                    == 0
-                {
-                    result.push(a);
-
-                    for out_id in assignment.output_identifiers() {
-                        known_ids.insert(out_id);
-                    }
-
-                    continue 'repeat;
-                }
-            }
-
-            if result.len() != result.capacity() {
-                let input_ids: HashSet<Identifier> = self
-                    .consumers
-                    .iter()
-                    .flat_map(|a| a.input_identifiers())
-                    .cloned()
-                    .collect();
-                let output_ids: HashSet<Identifier> = self
-                    .consumers
-                    .iter()
-                    .flat_map(|a| a.output_identifiers())
-                    .cloned()
-                    .collect();
-
-                let cycle: HashSet<_> = input_ids.intersection(&output_ids).cloned().collect();
-                if !cycle.is_empty() {
-                    return Err(ConnectionError::TopologicalConflict(cycle));
-                } else {
-                    return Ok(());
-                }
-            } else {
-                self.consumers = result
-                    .into_iter()
-                    .map(|i| self.consumers[i].clone())
-                    .collect();
-                return Ok(());
-            }
-        }
+    pub fn sort_topological<'x>(
+        self,
+        external_ids: HashSet<&'x Identifier>,
+    ) -> Result<Connection<'s>, TopologyError<'x>> {
+        let sorted = sort_topological(self.consumers, external_ids)?;
+        Ok(Connection {
+            consumers: sorted,
+            ..self
+        })
     }
+
 }
 
 impl std::fmt::Display for Connection<'_> {
@@ -171,12 +118,16 @@ pub(crate) struct Consumer<'s> {
     pub(crate) patterns: Vec<Pattern<'s>>,
 }
 
-impl Consumer<'_> {
-    fn output_identifiers(&self) -> impl Iterator<Item = &Identifier> {
+impl Node for Consumer<'_> {
+    type OutputIter<'x> = impl Iterator<Item = &'x Identifier<'x>> where Self: 'x;
+    type InputIter<'x> = impl Iterator<Item = &'x Identifier<'x>> where Self: 'x;
+
+
+    fn output_identifiers<'x>(&'x self) -> Self::OutputIter<'x> {
         self.patterns.iter().flat_map(|p| p.get_identifiers())
     }
 
-    fn input_identifiers(&self) -> impl Iterator<Item = &Identifier> {
+    fn input_identifiers<'x>(&'x self) -> Self::InputIter<'x> {
         let own_output : HashSet<_> = self.output_identifiers().collect();
         self.patterns.iter().flat_map(|p| p.get_expressions()).flat_map(|e| e.get_identifiers()).filter(move |i| !own_output.contains(i))
     }
