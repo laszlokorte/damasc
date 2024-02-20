@@ -1,5 +1,11 @@
 # <img src="./public/logo.svg" width="288" height="64" alt="Damasc" /> 
 
+## Archived!
+
+This experiment has been [moved to another repository](https://github.com/laszlokorte/damasc-workspace)
+
+## What is this?
+
 Experimental expression based language inspired by a subset of ES6. The feature set focuses on object and array literals, destructuring and pattern matching. Supports only immutable value type semantics, no reference types.
 
 ## Live demo
